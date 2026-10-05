@@ -199,3 +199,22 @@ Observações:
 - O Bichinho e o monitor de Internet dependem de Wi-Fi e de hora (NTP). O Retro pausa a rede (`netPause`) para liberar RAM, e no CYD seria igual.
 - Os recordes usam `Preferences`, que existe no ESP32 e funciona igual no CYD.
 - Os apps que tratam as teclas `KEY_A`, `KEY_B`, `KEY_OK`, `KEY_BACK` e as direções cabem no mesmo mapa de botões da seção 3.
+
+
+---
+
+## 10. O hardware do LatinhaColor e o que isso muda no plano
+
+Pelo `common.h`, `config.h` e `LatinhaColor.ino`, o aparelho anterior é: **ESP32 DevKit V1** (sem PSRAM, como o CYD), tela **ST7735 de 1,8" (160×128)**, **ADKeyboard** (5 botões num pino só, por resistores) e **joystick analógico**, compilado na **Arduino IDE** com o núcleo ESP32 3.x e as bibliotecas Adafruit GFX, Adafruit ST7735 e ArduinoJson. O `secrets.h` (Wi-Fi e token do Telegram) não foi enviado e não é necessário: nunca o envie.
+
+Consequências:
+
+1. **O porte fica menor do que eu pensava.** Dá para manter o framework (`common.h`, `.ino`, os 7 apps) e trocar só a tela, as teclas e o envio de imagem. A tela passa de `Adafruit_ST7735` para `Adafruit_ILI9341`, e o `flush()` amplia a tela lógica de 160×128 para 240×192.
+2. **Fica a pilha da Adafruit**, em vez do LovyanGFX que eu tinha proposto. Menos mudança, e você já a conhece.
+3. **O joystick analógico não vem.** Ele usa dois pinos analógicos (`JOY_V_PIN` e `JOY_H_PIN`), e o CYD só tem o IO35 livre. O D-pad passa a ser o módulo 5D digital (pelo PCF8574).
+4. **O ADKeyboard pode vir**, no IO35: ele dá OK, VOLTAR, A, B e MENU com um fio só, e dispensa o hack do botão BOOT. Os limites de tensão ficam em `config_cyd.h` e devem ser recalibrados.
+5. **A memória é a mesma** do aparelho anterior, e o app já era feito para esse limite (por isso o `netPause` no Retro).
+
+### Fase 1 já escrita: `cyd/teste_cyd/`
+
+Um sketch de teste de hardware (tela ×1,5 em pé, as 9 teclas, PCF8574 com detecção de endereço, ADKeyboard, cartão SD e memória). Instruções em `cyd/teste_cyd/LEIAME.md`. Foi verificado só no computador, com cabeçalhos simulados, e as assinaturas da biblioteca Adafruit foram conferidas contra os cabeçalhos reais. **Nunca foi compilado nem rodado no ESP32.**
