@@ -366,3 +366,10 @@ Os botões, segundo as mesmas fontes, costumam ser usados com o pull-up interno 
 | GPIO0 | `KEY_HOME` (pausa) | botão BOOT do CYD |
 
 Os botões E, F e K ficam sobrando. Se quiser o menu de pausa num botão grande em vez do BOOT, falta um pino: aí entra o toque na faixa livre da tela (em pé) ou um segundo PCF8574.
+
+### 9.1 Qual conector do shield usar
+
+- **"Ext I2C" (SCL, SDA, GND, +5V): não serve para os botões.** Segundo a [ProtoSupplies](https://protosupplies.com/product/funduino-joystick-shield-v1-a/), é só uma saída extra dos fios I²C do Arduino (A4 e A5), com 5 V e GND, para ligar módulos I²C. O shield não tem nenhum chip I²C, e os botões não passam por esse barramento: ligar o CYD aí não traz informação de botão nenhuma. Além disso o pino é de **5 V**, que nunca deve ir ao CYD.
+- **Conector amarelo de dupla fileira: este serve.** A mesma fonte diz que ele dá acesso a todos os botões, aos potenciômetros do analógico, a 3,3 V, 5 V e GND. Pela legenda impressa na sua foto, a fileira de cima tem `V A C E K X` e a de baixo `G B D F 3 Y`. Leitura minha, a confirmar com o multímetro: V = 5 V, G = GND, 3 = 3,3 V, A a F = botões, K = apertar o analógico, X e Y = eixos.
+
+Ligação para o CYD: um fio do **GND (G)** do conector amarelo ao GND do CYD e do PCF8574, e um fio de cada botão (A, B, C, D) a uma entrada do PCF8574, conforme a tabela da seção 9. Não é preciso alimentar o shield: os botões só precisam ligar o pino ao GND.
