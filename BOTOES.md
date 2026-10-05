@@ -216,7 +216,7 @@ Liga P0 a P7 pela ordem da tabela da secção 3.1 (LEFT em P0, RIGHT em P1, UP e
 
 1. Grava o Retro-Go para CYD. Há imagens prontas na release **"CYD RetroGo"** do fork (por exemplo `retro-go_1.46_cyd.img`), e as notas da release remetem para o guia do Instructables, que não consegui abrir. Segundo o `BUILDING.md` do fork, a gravação é `esptool.py write_flash --flash_size detect 0x0 retro-go_1.46_cyd.img`. Isto **apaga o CYDboy**; para voltar a ele, grava-o de novo pelo gravador web.
 2. Este fork não lê o Zero 2 nem o touch. Se quiseres os botões **e** o comando Bluetooth, é a opção B da `PROPOSTA.md`.
-3. Não verifiquei se o **CYDboy** lê botões físicos. O README dele só fala de Bluetooth e toque.
+3. O **CYDboy** lê botões físicos: o README fala de um PCF8574 detectado sozinho, e o código (`button_input.cpp`, `hw_config.h`) o lê no endereço 0x20 com os bits 0 a 7 = cima, baixo, esquerda, direita, A, B, Start, Select, que é a mesma ordem da secção 3.1 e do `PORTE_CYD.md`. **Mas ele usa o GPIO16 como SDA e o GPIO17 como SCL**, que no CYD são o LED RGB e não saem em conector. Para usar o CN1 (IO22 e IO27) é preciso trocar duas linhas em `hw_config.h` e compilar. Li só esses arquivos e o README, não compilei nada (`PORTE_CYD.md`, secção 5.1).
 4. O fork `CYD` tem o driver de bateria desligado, por isso o medidor de bateria da `PROPOSTA.md` não funciona nele sem alterações.
 
 ---
@@ -363,7 +363,7 @@ Os botões, segundo as mesmas fontes, costumam ser usados com o pull-up interno 
 | P5 | `KEY_BACK` (B no Game Boy) | shield: **B** (D3) |
 | P6 | `KEY_B` (Start) | shield: **C** (D4) |
 | P7 | `KEY_A` (Select) | shield: **D** (D5) |
-| GPIO0 | `KEY_HOME` (pausa) | botão BOOT do CYD |
+| Toque | `KEY_HOME` (pausa) | toque em qualquer lugar da tela (o BOOT do CYD, no GPIO0, é opcional) |
 
 Os botões E, F e K ficam sobrando. Se quiser o menu de pausa num botão grande em vez do BOOT, falta um pino: aí entra o toque na faixa livre da tela (em pé) ou um segundo PCF8574.
 

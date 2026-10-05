@@ -3,6 +3,8 @@ O NES fica fora deste firmware por enquanto, para não juntar mais código de te
 
 Este documento parte do arquivo do app Retro do firmware anterior (LatinhaColor), que você colou na conversa. Eu só vi **esse arquivo**: não tenho o `gb_core.c`, o `src/smsplus`, o restante do firmware (tela, botões, menu) nem o script `gravar_jogos.ps1`. Tudo abaixo é leitura do código colado e **não foi compilado nem testado**.
 
+> **Decisão atual (opção B):** um firmware só, partindo do código do CYDboy para Game Boy e Game Boy Color (Walnut-CGB), com o SMS Plus do LatinhaColor acrescentado para Game Gear e Master System. O porte do app Retro inteiro, descrito nas secções 1 a 4, passa a servir sobretudo para o SMS Plus e para o mapa de botões. Veja a secção 5.1 e o plano na secção 7.
+
 ---
 
 ## 1. O que o app Retro já faz
@@ -26,7 +28,7 @@ Isso é a opção C da `PROPOSTA.md` (firmware próprio), mas com a parte difíc
 | Buffer | `gfx` de 16 bits, 160×128 (cerca de 40 KB) | 320×240 em 16 bits são 150 KB: evitar. Usar um buffer do tamanho do jogo (GB/GG 160×144 = 46 KB; SMS 256×192 = 98 KB) |
 | Escala | GB e GG: descarta 1 linha a cada 9 (144→128). SMS: 256×192 → 160×128 (descarta linhas e colunas) | GB e GG em **160×144, 1:1** (ou 1,5× = 240×216). SMS em **256×192, 1:1**. Some o código de descarte (`gl % 9`, `line % 3`, `smsX`) |
 | Taxa de quadros | SMS desenha 1 quadro sim, 1 não | Medir. A 40 MHz de SPI, 98 KB levam cerca de 20 ms e 46 KB cerca de 9 ms (conta minha, sem testar) |
-| Botões | Joystick 5D + SW1–SW4 + amarelo | PCF8574 no CN1 + botão BOOT (secção 3) |
+| Botões | Joystick 5D + SW1–SW4 + amarelo | PCF8574 no CN1 com 8 botões, e **menu de pausa por toque** em qualquer lugar da tela (secção 3). O BOOT fica opcional |
 | Rede | Telegram (`tgIdle`, `netPause`, tarefa no núcleo 0) | Some: sem Wi-Fi, sobra mais RAM |
 | ROMs | Partição `spiffs` de cerca de 2 MB (esquema "No OTA" de 4 MB, a confirmar), gravada pelo `gravar_jogos.ps1` | **microSD** (secção 5) |
 | Som | Nenhum | Alto-falante no GPIO26, opcional |
@@ -35,7 +37,7 @@ Isso é a opção C da `PROPOSTA.md` (firmware próprio), mas com a parte difíc
 
 ## 3. Botões: dá para usar o que você já tem
 
-O app usa 9 teclas: cima, baixo, esquerda, direita, `KEY_OK`, `KEY_BACK`, `KEY_A`, `KEY_B` e `KEY_HOME`. O PCF8574 tem 8 pinos, e o amarelo (`KEY_HOME`) vai para o botão BOOT do CYD (GPIO0, já na placa). **Não precisa comprar o PCF8575.**
+O app usa 9 teclas: cima, baixo, esquerda, direita, `KEY_OK`, `KEY_BACK`, `KEY_A`, `KEY_B` e `KEY_HOME`. O PCF8574 tem 8 pinos, que cobrem as 8 teclas de jogo. O amarelo (`KEY_HOME`, o menu de pausa) passa para o **toque**, em qualquer lugar da tela (secção 5.1). Não há botão Option: Tamanho e as outras opções ficam dentro do menu de pausa. O botão BOOT do CYD (GPIO0, já na placa) fica como alternativa opcional para o menu. **Não precisa comprar o PCF8575.**
 
 | Pino do PCF8574 | Tecla do app | Peça | Game Boy | Game Gear / Master System |
 |-----------------|--------------|------|----------|---------------------------|
@@ -47,12 +49,13 @@ O app usa 9 teclas: cima, baixo, esquerda, direita, `KEY_OK`, `KEY_BACK`, `KEY_A
 | P5 | `KEY_BACK` | botão do kit nº 2 | B | botão 1 |
 | P6 | `KEY_B` | módulo 5D: RST | Start | Start (GG) / Pause (SMS) |
 | P7 | `KEY_A` | módulo 5D: SET | Select | (sem uso) |
-| GPIO0 (BOOT) | `KEY_HOME` | botão da placa | menu de pausa | menu de pausa |
+| Toque em qualquer lugar da tela | `KEY_HOME` | tela inteira | menu de pausa | menu de pausa |
+| GPIO0 (BOOT), opcional | `KEY_HOME` | botão da placa | menu de pausa | menu de pausa |
 
 Ligações do PCF8574 no CN1: SDA no IO22, SCL no IO27, VCC no 3V3, GND no GND. O COM do módulo 5D e o outro lado de cada botão vão no GND. O endereço depende dos jumpers A0/A1/A2. O sketch de teste está na secção 5.3 do `BOTOES.md`.
 
 Dois detalhes:
-- O GPIO0 é um pino de boot: o botão precisa estar solto na hora de ligar ou de resetar. Depois que o programa roda, pode ser usado como entrada normal.
+- O GPIO0 é um pino de boot: o botão precisa estar solto na hora de ligar ou de resetar. Depois que o programa roda, pode ser usado como entrada normal. Como o Menu vai por toque, o BOOT é só um extra.
 - O MID (centro) do módulo 5D fica sem uso.
 
 ---
@@ -82,7 +85,7 @@ Hoje o app lê as ROMs de uma partição da flash, mapeada como memória. Para u
 | Sistema | Como ler do cartão |
 |---------|--------------------|
 | Game Gear e Master System | **Copiar a ROM do cartão para a partição da flash** ao escolher o jogo e mapear de lá, como hoje. Essas ROMs são pequenas (em geral de dezenas a algumas centenas de KB), então a cópia deve levar poucos segundos (estimativa minha). Se o jogo escolhido já é o que está na partição, pula a cópia |
-| Game Boy | Mesma cópia no começo (reaproveita todo o código). Depois, se quiser jogos maiores que a partição, o Peanut-GB lê por função de callback, e dá para ler direto do cartão |
+| Game Boy e Game Boy Color | **Ler direto do cartão**, como o CYDboy já faz: segundo o README dele, percorre a tabela de clusters FAT32 e usa um cache de página de 512 bytes, sem PSRAM. É o que permite as ROMs de GBC, que chegam a 8 MB e não cabem na partição de cerca de 2 MB. Não li o `sd_manager.cpp` para ver os detalhes |
 
 Pastas no cartão, iguais às do CYDboy para o mesmo cartão servir aos dois:
 
@@ -97,10 +100,52 @@ GAMES (D:)
 ```
 
 - A lista de jogos deixa de ter o limite de 16 (`MAXROMS`) e passa a rolar.
-- **Saves e fotos passam a ser arquivos** em `saves/` (por exemplo `jogo.sav` e `jogo.state`). Gasta menos a flash e dá para fazer backup copiando o cartão. Isso troca o código dos `BAT3` e `STA3` que gravam na partição.
+- **Saves e fotos passam a ser arquivos** em `saves/` (por exemplo `jogo.sav` e `jogo.state`). Gasta menos a flash e dá para fazer backup copiando o cartão. Isso troca o código dos `BAT3` e `STA3` que gravam na partição. Para Game Boy e GBC o CYDboy já faz isso (`.sav` e `.state` em `/saves/`); falta só Game Gear e Master System.
 - A flash passa a servir só para o jogo que está rodando. O tamanho da partição define o maior jogo que cabe (a definir quando eu vir o tamanho do firmware).
-- **Game Boy Color:** o Peanut-GB é só do Game Boy original (DMG). Jogos que são só de GBC não vão rodar. O CYDboy usa o Walnut-CGB, um derivado com suporte a GBC (MIT), que pode entrar no app depois.
+- **Game Boy Color:** o Peanut-GB é só do Game Boy original (DMG), então jogos exclusivos de GBC não rodam e os que servem para os dois saem em preto e branco. O núcleo passa a ser o **Walnut-CGB** (derivado do Peanut-GB, com suporte a GBC, MIT), que o CYDboy já usa, e o firmware parte do código do CYDboy. Detalhes na secção 5.1.
 - O NES e as ROMs do Anemoia ficam na raiz do cartão, como ele pede, e não atrapalham.
+
+### 5.1 Game Boy e Game Boy Color: o CYDboy como base do firmware (fases 2 e 3)
+
+**Decisão (opção B):** um firmware só, partindo do código do [CYDboy](https://github.com/Rocka84/CYDboy) (Rocka84, MIT). Ele já roda o Walnut-CGB no CYD, então Game Boy e Game Boy Color vêm prontos. O que o LatinhaColor traz para cá passa a ser o **SMS Plus** (Game Gear e Master System). O `gb_core.c` e o Peanut-GB do LatinhaColor deixam de ser usados.
+
+O que li do CYDboy, pelo GitHub: o README e três arquivos (`include/hw_config.h`, `src/button_input.cpp`, `src/display.cpp`). **Não li** o resto (`emulator_bridge.cpp`, `ui_launcher.cpp`, `sd_manager.cpp`, `bt_controller.cpp`...), não o compilei e não o rodei no CYD.
+
+| Item | O que o CYDboy tem (lido) | O que fazemos |
+|------|---------------------------|---------------|
+| Núcleo | Walnut-CGB (`walnut_cgb.h`), com CGB completo. O `include/` também traz `peanut_gb.h` | Nada |
+| Tela | TFT_eSPI, rotação 2 (USB em cima). A imagem de 160×144 vai a ×1,5 (240×216) linha a linha em `display_push_gb_line()`: cada 2 pixels viram 3 e as linhas ímpares se repetem. Barra de controles de 104 px a partir de y=216 | É o que a secção 6.1 já decidiu. Falta GG e SMS nesse mesmo esquema (240×216 e 240×180) |
+| ROM | Direto do cartão (secção 5). Pastas `roms/gb` e `roms/gbc` | Acrescentar `roms/gg` e `roms/sms`, com a cópia da ROM para a flash |
+| Saves | `.sav` e `.state` em `/saves/` | GB e GBC prontos. GG e SMS: adaptar o `latinha_state.c` para gravar arquivo |
+| Botões | PCF8574 no endereço 0x20, lido como 1 byte, nível baixo = apertado. Bits: 0 cima, 1 baixo, 2 esquerda, 3 direita, 4 A, 5 B, 6 Start, 7 Select | O mapa é **igual** ao da secção 3 para o Game Boy (P4 A, P5 B, P6 Start, P7 Select), então a ligação já planejada serve |
+| Pinos do PCF8574 | **SDA = GPIO16, SCL = GPIO17** em `hw_config.h`, com o LED verde e o azul desligados (-1) | Trocar para **22 e 27** (CN1). Os GPIO16 e 17 são o LED RGB da placa e não saem em nenhum conector. Conferir se mais alguma coisa usa 22 ou 27 |
+| Menu de pausa | O `hw_config.h` define zonas de toque na barra (D-pad, A, B, Start/Select e **Menu**). Não li o `touch_input.cpp` nem o código que usa a zona Menu | **Menu de pausa por toque em qualquer lugar da tela**, com Tamanho, Paleta, Pular quadros e Som dentro dele. Ver "Menu de pausa por toque", logo abaixo da tabela |
+| Bluetooth e Wi-Fi | `bt_controller.cpp` (Bluepad32) e `wifi_upload.cpp` | Com botões físicos não são necessários. Deixar desligáveis por opção de compilação, para liberar RAM, e medir |
+| Compilação | PlatformIO (`pio run -t upload`) | Troca a Arduino IDE do LatinhaColor. O `cyd/teste_cyd/` (Adafruit) fica só como teste de hardware; o firmware usa a TFT_eSPI do CYDboy |
+
+**Menu de pausa por toque.** O menu abre tocando em qualquer lugar da tela. Não há botão Option: tudo fica num menu só, com estes itens:
+
+| Item | O que faz |
+|------|-----------|
+| Continuar | Fecha o menu e volta ao jogo |
+| Salvar foto, Carregar foto | Save state (secção 5) |
+| Tamanho | Normal (1:1, bandas pretas dos lados), Ajustado ou Tela cheia (secção 6.2) |
+| Paleta | Cores do modo DMG (o README do CYDboy fala de 20 paletas) |
+| Pular quadros | De 0 a 4 (o README do CYDboy) |
+| Som | Liga ou desliga |
+| Sair | Volta à lista de jogos |
+
+**O menu abre com um toque em qualquer lugar da tela**, não numa zona só. Isso vale também na tela cheia (secção 6.2), onde não sobra barra. Dentro do menu você navega com o D-pad e o A, então o toque só abre. O risco é abrir o menu sem querer ao segurar o aparelho com o dedo na tela. Se acontecer, as saídas são exigir um toque mais longo (por exemplo meio segundo) ou deixar uma borda sem toque, e as duas são ajustes pequenos.
+
+Para isso o plano é esconder da tela o D-pad, o A, o B, o Start e o Select quando o PCF8574 for detectado (o `button_input.cpp` já tem a variável `pcf_detected`), como o CYDboy já faz quando um controle Bluetooth conecta. É código novo no `touch_input.cpp` e na tela, que **ainda não li**, e os itens Tamanho, Paleta, Pular quadros e Som dependem de como o CYDboy guarda essas opções (também não li). O toque é resistivo, sem tato: serve para abrir o menu de vez em quando, não para Start ou Select no meio do jogo, que ficam nos botões físicos.
+
+**O que o SMS Plus precisa:** uma ponte para o lançador do CYDboy, parecida com a que ele tem para o Game Boy (`emulator_bridge.cpp`, ainda não lido), e a função de linha do LatinhaColor (`latinha_sms_line`) trocada pela do CYDboy, sem os descartes de linhas e colunas para 160×128. O primeiro passo da fase 4 é ler esse arquivo.
+
+Riscos, nesta ordem:
+
+1. **Memória com dois núcleos.** O GBC já usa bastante (2 bancos de VRAM de 16 KB e 8 de WRAM de 32 KB, segundo o README), e o SMS Plus soma o estado dele (cerca de 25 KB) mais o VDP. Os dois não podem ocupar RAM ao mesmo tempo: ou se aloca só o núcleo do jogo escolhido (e se libera ao sair), ou o lançador reinicia para o emulador escolhido, como na arquitetura da `PROPOSTA.md`. Só a medição no CYD diz qual cabe.
+2. **Velocidade.** O CYDboy diz mirar mais de 50 fps, com Bluetooth e toque. Sem medição minha. Tirar o Bluetooth deve ajudar.
+3. **Fork difícil de mexer.** Se o código do CYDboy for apertado demais para acrescentar um segundo núcleo, o plano cai na opção A: o CYDboy puro para GB e GBC, e um firmware menor só com o SMS Plus para GG e SMS. A troca passa a ser por regravação.
 
 ---
 
@@ -127,7 +172,7 @@ Os limites vêm só da largura de banda do SPI (40 MHz = cerca de 5 MB/s), sem c
 
 ### 6.1 Com o CYD em pé (vertical, 240×320)
 
-**Decisão: o console fica em pé.** Isso vale para o resto do plano: Game Boy e Game Gear em ×1,5 (240×216), Master System em 240×180, faixa livre embaixo da imagem (104 px no Game Boy e no Game Gear, 140 px no Master System), botões físicos na parte de baixo da caixa como no Game Boy original. As opções "tela cheia" e ×1,67 da tabela da secção 6 só valem para o CYD deitado e ficam de fora.
+**Decisão: o console fica em pé.** Isso vale para o resto do plano: Game Boy e Game Gear em ×1,5 (240×216), Master System em 240×180, faixa livre embaixo da imagem (104 px no Game Boy e no Game Gear, 140 px no Master System), botões físicos na parte de baixo da caixa como no Game Boy original. A opção ×1,67 da tabela da secção 6 só vale para o CYD deitado e fica de fora. A "tela cheia" volta como um modo do menu de pausa, esticada para 240×320, junto com o Normal (1:1, bandas pretas dos lados) e o Ajustado (secção 6.2).
 
 Em pé, a tela fica 240 de largura por 320 de altura, como um Game Boy original. O Game Boy e o Game Gear são mais largos que altos (160×144), então a imagem enche a **largura**, mas não a altura:
 
@@ -136,11 +181,26 @@ Em pé, a tela fica 240 de largura por 320 de altura, como um Game Boy original.
 | Game Boy e Game Gear | ×1,5 (240 ÷ 160) | **240×216** | faixa de 104 px embaixo | 104 KB |
 | Master System | ×0,9375 (240 ÷ 256, reduz 1 pixel a cada 16) | 240×180 | faixa de 140 px | 86 KB |
 
-- **Não é tela cheia:** o Game Gear ocupa toda a largura, mas só 216 dos 320 pixels de altura (cerca de 2/3).
+- **No modo Ajustado não é tela cheia:** o Game Gear ocupa toda a largura, mas só 216 dos 320 pixels de altura (cerca de 2/3).
 - A imagem **não fica maior** que no modo ×1,5 na horizontal (também 240×216). Na horizontal dá para chegar a 267×240 (×1,67), mas em pé o máximo sem distorcer é 240×216.
 - Em compensação o formato lembra o Game Boy, e a faixa de 104 px serve para mostrar bateria, o nome do jogo ou botões na tela. Como o firmware é nosso, dá para usar o toque nessa faixa para Start, Select e Menu, e liberar pinos do expansor.
 - O Master System é um console de tela larga: em pé fica menor que na horizontal (onde enche 320×240).
 - Girar a tela é só uma configuração do driver, não custa velocidade.
+
+### 6.2 Modos de tamanho no menu de pausa (em pé)
+
+O item **Tamanho** do menu de pausa tem três modos, com a escolha guardada por sistema (padrão: Ajustado):
+
+| Modo | Game Boy e Game Gear (160×144) | Master System (256×192) |
+|------|-------------------------------|-------------------------|
+| **Normal** (1:1, bandas pretas dos lados) | 160×144 no centro, banda preta de 40 px em cada lado. 46 KB por quadro | 256 px não cabem nos 240 da tela, então sem escala o jeito é **recortar 8 px de cada lado** (240×192). A conferir se algum jogo perde algo importante nas bordas |
+| **Ajustado** (padrão) | ×1,5, 240×216, sem banda dos lados. 104 KB por quadro | 240×180 (reduz 1 pixel a cada 16). 86 KB por quadro |
+| **Tela cheia** | Esticado para 240×320: ×1,5 na largura e ×2,22 na altura, então a imagem fica cerca de 48% mais alta que o certo. 154 KB por quadro | Esticado para 240×320. 154 KB por quadro |
+
+- **Imagem esticada:** a tela cheia não existe sem distorção, porque 160×144 e 240×320 têm formatos diferentes (secção 6). É um modo para quem prefere a imagem grande.
+- **Velocidade:** a 40 MHz de SPI, 154 KB levam cerca de 31 ms, ou seja ~32 quadros por segundo no limite do barramento (conta minha, sem medir). Na tela cheia pode ser preciso atualizar a tela a 30 Hz, como o LatinhaColor já fazia no Master System (um quadro sim, um não). O Normal e o Ajustado sobram: ~108 e ~48 quadros por segundo no limite.
+- **Sem buffer grande:** como o CYDboy já faz no Ajustado (linha a linha, em `display_push_gb_line()`), os três modos podem repetir ou duplicar linhas e colunas enquanto enviam, sem um quadro inteiro na RAM. Os fatores novos (a altura de 144 para 320 repete as linhas em grupos de 2 e 3) são código novo.
+- **Menu:** na tela cheia não sobra barra de controles, e o menu abre tocando em qualquer lugar da tela (secção 5.1). O BOOT fica como alternativa.
 
 **A escolha de em pé ou deitado define a caixa e a posição dos botões**, então vale decidir antes de projetá-la: em pé combina com Game Boy e Game Gear, deitado combina com Master System.
 
@@ -150,12 +210,14 @@ Em pé, a tela fica 240 de largura por 320 de altura, como um Game Boy original.
 
 | Fase | Entrega | Critério de sucesso |
 |------|---------|---------------------|
-| 1 | Esqueleto para o CYD: tela ILI9341, leitura dos botões (PCF8574 + BOOT), sem emuladores | Uma tela de teste mostra a tecla apertada |
-| 2 | microSD: lista de jogos lida das pastas `roms/` e cópia da ROM para a partição | A lista mostra os jogos do cartão e a ROM escolhida aparece na partição |
-| 3 | Game Boy | Um jogo roda com os botões, em velocidade correta |
-| 4 | Game Gear e Master System | Os dois rodam, com os modos de tamanho da secção 6 |
-| 5 | Saves e fotos em arquivos no cartão | Save de bateria e foto funcionando como no LatinhaColor |
-| 6 | Extras | Som no GPIO26, Game Boy Color com o Walnut-CGB |
+| 1 | Teste de hardware (`cyd/teste_cyd/`, já escrito) e o **CYDboy pronto** gravado no CYD | Tela, botões, SD e memória confirmados, e o CYDboy joga GB e GBC com o toque ou o Zero 2 |
+| 2 | **Fork do CYDboy** neste repositório: PCF8574 em IO22/IO27, menu de pausa por toque, com Tamanho, Paleta, Pular quadros e Som dentro dele (e os controles na tela escondidos), Bluetooth e Wi-Fi desligáveis (secção 5.1) | Compila no PlatformIO e joga um jogo de GB e um de GBC com os seus botões físicos. Memória livre medida |
+| 3 | **Game Boy e Game Boy Color com o Walnut-CGB**, que já vem no CYDboy: menu de pausa por toque, pastas e velocidade | GB e GBC jogáveis com cores certas e quadros por segundo medidos nos seus botões, nos três tamanhos do menu (Normal, Ajustado e Tela cheia; secção 6.2) |
+| 4 | **Game Gear e Master System**: SMS Plus acrescentado ao fork (ponte do emulador, pastas `roms/gg` e `roms/sms`, cópia da ROM para a partição, tamanhos da secção 6) | Os dois rodam, e a memória livre foi medida com os dois núcleos no firmware |
+| 5 | Saves e fotos de GG e SMS em arquivos no cartão (GB e GBC já vêm prontos) | Save de bateria e foto de GG e SMS em `saves/` |
+| 6 | Extras | Som de GG e SMS no GPIO26 (ver o que o CYDboy já tem de áudio) e, se ainda interessar, os apps do LatinhaColor (secção 9) |
+
+Se o fork do CYDboy não aguentar o segundo núcleo (risco 3 da secção 5.1), as fases 2 e 3 valem do mesmo jeito e a 4 vira um firmware separado só com GG e SMS.
 
 O NES fica de fora por enquanto: o Anemoia-ESP32 é GPLv3 e o SMS Plus é GPL v2, e misturar os dois pode dar problema de licença. Se quiser NES, o caminho é o firmware do Anemoia separado, como descrito no `BOTOES.md`.
 
@@ -168,6 +230,9 @@ O repositório é público, e os arquivos que você enviou têm licenças difere
 | Código | O que o cabeçalho diz |
 |--------|-----------------------|
 | **Peanut-GB** (Mahyar Koshkouei) | MIT. Pode ficar no repositório, com o aviso de copyright. |
+| **CYDboy** (Rocka84) | MIT, segundo o README. Não li o arquivo `LICENSE`: conferir antes de copiar o código. |
+| **Walnut-CGB** | MIT, segundo o README do CYDboy. **Não vi o cabeçalho do `walnut_cgb.h`**: confirmar o texto da licença e os autores antes de colocar o código no repositório. |
+| **Bluepad32** (usado pelo CYDboy) | Não li a licença. Se o Bluetooth ficar no firmware, conferir os termos dele e da pilha Bluetooth que ele usa. |
 | **SMS Plus** (Charles Mac Donald), por exemplo `system.c` | GPL v2 "ou qualquer versão posterior". |
 | **Z80** (`z80.c`, Juergen Buchmueller) | "Freeware para fins **não comerciais**". Pede crédito ao autor, um aviso em cada arquivo modificado e contato para uso comercial, e reserva o direito de mudar os termos a qualquer momento, inclusive retroativamente. **Isso não é GPL.** |
 | `cpuintrf.h` e `osd_cpu.h` | Vêm do MAME, que antes tinha uma licença parecida (não comercial). Esses dois arquivos não têm cabeçalho de licença no que você enviou. |
@@ -175,7 +240,7 @@ O repositório é público, e os arquivos que você enviou têm licenças difere
 Consequências:
 
 1. **Uso pessoal** no seu console: sem problema.
-2. **Este repositório público não vai receber os arquivos do SMS Plus, do Z80 nem do MAME.** Eles ficam numa pasta que o git ignora (`third_party/`), e o projeto do CYD os pega da sua cópia do LatinhaColor (um script copia). O repositório terá só código novo, o Peanut-GB (MIT) e a documentação.
+2. **Este repositório público não vai receber os arquivos do SMS Plus, do Z80 nem do MAME.** Eles ficam numa pasta que o git ignora (`third_party/`), e o projeto do CYD os pega da sua cópia do LatinhaColor (um script copia). O repositório terá só código novo, o fork do CYDboy e o Walnut-CGB (MIT, com os avisos de copyright deles) e a documentação.
 3. **Vender ou distribuir** o console com esse firmware seria uso comercial e redistribuição. Aí é preciso resolver o Z80: pedir autorização ao autor ou trocar o núcleo por um livre.
 
 ---
@@ -214,6 +279,8 @@ Consequências:
 3. **O joystick analógico não vem.** Ele usa dois pinos analógicos (`JOY_V_PIN` e `JOY_H_PIN`), e o CYD só tem o IO35 livre. O D-pad passa a ser o módulo 5D digital (pelo PCF8574).
 4. **O ADKeyboard pode vir**, no IO35: ele dá OK, VOLTAR, A, B e MENU com um fio só, e dispensa o hack do botão BOOT. Os limites de tensão ficam em `config_cyd.h` e devem ser recalibrados.
 5. **A memória é a mesma** do aparelho anterior, e o app já era feito para esse limite (por isso o `netPause` no Retro).
+
+**Atualização (opção B):** os itens 1 e 2 deixam de valer para o firmware final. Ele parte do CYDboy, que usa TFT_eSPI e PlatformIO, e não do framework do LatinhaColor com a pilha da Adafruit. Os 7 apps (secção 9) ficam fora do caminho principal, e portá-los exigiria uma camada `gfx` sobre a TFT_eSPI. Os itens 3 a 5 continuam valendo.
 
 ### Fase 1 já escrita: `cyd/teste_cyd/`
 
