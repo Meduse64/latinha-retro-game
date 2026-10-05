@@ -27,7 +27,7 @@ Isso é a opção C da `PROPOSTA.md` (firmware próprio), mas com a parte difíc
 | Taxa de quadros | SMS desenha 1 quadro sim, 1 não | Medir. A 40 MHz de SPI, 98 KB levam cerca de 20 ms e 46 KB cerca de 9 ms (conta minha, sem testar) |
 | Botões | Joystick 5D + SW1–SW4 + amarelo | PCF8574 no CN1 + botão BOOT (secção 3) |
 | Rede | Telegram (`tgIdle`, `netPause`, tarefa no núcleo 0) | Some: sem Wi-Fi, sobra mais RAM |
-| ROMs | Partição `spiffs` de cerca de 2 MB (esquema "No OTA" de 4 MB, a confirmar) | Mesma coisa para começar. Depois, microSD (secção 5) |
+| ROMs | Partição `spiffs` de cerca de 2 MB (esquema "No OTA" de 4 MB, a confirmar), gravada pelo `gravar_jogos.ps1` | **microSD** (secção 5) |
 | Som | Nenhum | Alto-falante no GPIO26, opcional |
 
 ---
@@ -70,20 +70,73 @@ Só tenho o arquivo do app. Para montar o projeto do CYD preciso dos outros arqu
 
 ---
 
-## 5. Plano
+## 5. ROMs no cartão SD
+
+Hoje o app lê as ROMs de uma partição da flash, mapeada como memória. Para usar o microSD é preciso mudar isso, e a razão é o SMS Plus: ele lê a ROM como memória (`cart.rom`), então não dá para ler do cartão aos poucos como o CYDboy faz com o Game Boy.
+
+| Sistema | Como ler do cartão |
+|---------|--------------------|
+| Game Gear e Master System | **Copiar a ROM do cartão para a partição da flash** ao escolher o jogo e mapear de lá, como hoje. Essas ROMs são pequenas (em geral de dezenas a algumas centenas de KB), então a cópia deve levar poucos segundos (estimativa minha). Se o jogo escolhido já é o que está na partição, pula a cópia |
+| Game Boy | Mesma cópia no começo (reaproveita todo o código). Depois, se quiser jogos maiores que a partição, o Peanut-GB lê por função de callback, e dá para ler direto do cartão |
+
+Pastas no cartão, iguais às do CYDboy para o mesmo cartão servir aos dois:
+
+```
+GAMES (D:)
+├── roms/
+│   ├── gb/      .gb
+│   ├── gbc/     .gbc (ver abaixo)
+│   ├── gg/      .gg
+│   └── sms/     .sms
+└── saves/       criada pelo firmware
+```
+
+- A lista de jogos deixa de ter o limite de 16 (`MAXROMS`) e passa a rolar.
+- **Saves e fotos passam a ser arquivos** em `saves/` (por exemplo `jogo.sav` e `jogo.state`). Gasta menos a flash e dá para fazer backup copiando o cartão. Isso troca o código dos `BAT3` e `STA3` que gravam na partição.
+- A flash passa a servir só para o jogo que está rodando. O tamanho da partição define o maior jogo que cabe (a definir quando eu vir o tamanho do firmware).
+- **Game Boy Color:** o Peanut-GB é só do Game Boy original (DMG). Jogos que são só de GBC não vão rodar. O CYDboy usa o Walnut-CGB, um derivado com suporte a GBC (MIT), que pode entrar no app depois.
+- O NES e as ROMs do Anemoia ficam na raiz do cartão, como ele pede, e não atrapalham.
+
+---
+
+## 6. Tela cheia
+
+A tela do CYD na horizontal é 320×240 (4:3). Os jogos têm outros formatos:
+
+| Sistema | Tamanho original | Modo | Tamanho na tela | Dados por quadro | Limite teórico do SPI a 40 MHz |
+|---------|------------------|------|-----------------|------------------|-------------------------------|
+| Master System | 256×192 (4:3) | 1:1, centralizado | 256×192 | 98 KB | ~51 quadros/s |
+| Master System | 256×192 (4:3) | **tela cheia, ×1,25** | **320×240** | 154 KB | ~32 quadros/s |
+| Game Boy e Game Gear | 160×144 (10:9) | 1:1, centralizado | 160×144 | 46 KB | ~108 quadros/s |
+| Game Boy e Game Gear | 160×144 (10:9) | ×1,5 (altura quase cheia) | 240×216 | 104 KB | ~48 quadros/s |
+| Game Boy e Game Gear | 160×144 (10:9) | ×1,67 (altura cheia) | 267×240 | 128 KB | ~39 quadros/s |
+| Game Boy e Game Gear | 160×144 (10:9) | esticado | 320×240 | 154 KB | ~32 quadros/s |
+
+Os limites vêm só da largura de banda do SPI (40 MHz = cerca de 5 MB/s), sem contar o tempo do emulador nem o overhead. Não testei nada disso.
+
+- **Master System:** 256×192 é 4:3, o mesmo formato da tela. ×1,25 enche a tela sem distorcer. O custo é a cada 4 pixels repetir 1 (e a cada 4 linhas repetir 1), e mandar 154 KB por quadro.
+- **Game Boy e Game Gear:** 160×144 não é 4:3, então **tela cheia sem distorcer não existe**. Escalas inteiras (×2 = 320×288) não cabem na altura. As opções são ×1,5 (com barras pretas nas laterais e 12 pixels em cima e embaixo), ×1,67 (altura cheia) ou esticar a imagem (fica 20% mais larga que o certo). Qualquer escala não inteira repete alguns pixels e deixa a imagem um pouco irregular.
+- O LatinhaColor já desenhava 1 quadro sim e 1 não no Master System. Se o SPI não dá conta do modo escolhido, a mesma ideia funciona aqui: o emulador roda a 60 Hz e a tela atualiza a ~30 Hz.
+
+**Proposta:** um item "Tamanho" no menu de pausa: 1:1, ajustado (padrão) e tela cheia, com a escolha guardada por sistema. Padrão: Master System em ×1,25 (tela cheia sem distorção) e Game Boy e Game Gear em ×1,5. O que cabe de verdade só se descobre medindo no CYD.
+
+---
+
+## 7. Plano
 
 | Fase | Entrega | Critério de sucesso |
 |------|---------|---------------------|
 | 1 | Esqueleto para o CYD: tela ILI9341, leitura dos botões (PCF8574 + BOOT), sem emuladores | Uma tela de teste mostra a tecla apertada |
-| 2 | Game Boy | Um jogo roda com os botões, em velocidade correta |
-| 3 | Game Gear e Master System | Os dois rodam, com a imagem 1:1 |
-| 4 | Saves e fotos | Save de bateria e foto funcionando como no LatinhaColor |
-| 5 | Extras | Som no GPIO26, ROMs no microSD (GB pode ler por callback; o SMS Plus precisa da ROM em memória, então a ideia é copiar a ROM do cartão para a partição ao escolher o jogo) |
+| 2 | microSD: lista de jogos lida das pastas `roms/` e cópia da ROM para a partição | A lista mostra os jogos do cartão e a ROM escolhida aparece na partição |
+| 3 | Game Boy | Um jogo roda com os botões, em velocidade correta |
+| 4 | Game Gear e Master System | Os dois rodam, com os modos de tamanho da secção 6 |
+| 5 | Saves e fotos em arquivos no cartão | Save de bateria e foto funcionando como no LatinhaColor |
+| 6 | Extras | Som no GPIO26, Game Boy Color com o Walnut-CGB |
 
 O NES fica de fora por enquanto: o Anemoia-ESP32 é GPLv3 e o SMS Plus é GPL v2, e misturar os dois pode dar problema de licença. Se quiser NES, o caminho é o firmware do Anemoia separado, como descrito no `BOTOES.md`.
 
 ---
 
-## 6. Licenças
+## 8. Licenças
 
 O repositório é público. O SMS Plus é **GPL v2**: o firmware que o inclui, se for distribuído ou publicado, precisa seguir a GPL v2 (e manter os avisos de copyright). O Peanut-GB é MIT. Quando o código entrar aqui, adiciono um `LICENSE` e os avisos no lugar certo.
