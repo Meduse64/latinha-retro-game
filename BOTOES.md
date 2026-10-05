@@ -30,7 +30,8 @@ Cuidado: o **PCF8574** (8 pinos, mais comum e barato) **não serve**, só dá 8 
 | Peça | Quantidade | Nota |
 |------|-----------|------|
 | Módulo **PCF8575** (16 bits, I²C) | 1 | Tem de dizer PCF8575. Verifica se os pinos de endereço A0, A1, A2 estão acessíveis |
-| Botões de pressão (tactile, 6×6 mm ou maiores) | 10 | Pode ser menos, ver secção 3 |
+| Módulo joystick de navegação 5D (COM, UP, DWN, LFT, RHT, MID, SET, RST) | 1 | **Já tens** |
+| Botões de pressão (tactile 6×6 mm) | 10 | **Já tens** (kit de 10). Só vão ser usados 3 |
 | Fio fino (28–30 AWG) | alguns metros | Cores diferentes ajudam |
 | Placa perfurada ou a caixa impressa em 3D | opcional | Para fixar os botões |
 | Termorretrátil, ferro de soldar, estanho | — | — |
@@ -58,6 +59,29 @@ Cada botão liga entre **o pino do expansor** e **GND**. Pelo que entendo do `co
 A correspondência entre bit e pino é uma dedução minha: o código monta os botões como `(porta1 << 8) | porta0`, por isso os bits 0–7 são a porta 0 (P00–P07) e os bits 8–9 são P10 e P11. **Confirma os nomes impressos no teu módulo**, porque alguns chamam-lhes P0–P15 em vez de P00–P17.
 
 Mínimo útil: os 4 do D-pad, A, B, Select, Start e **MENU** (para abrir o menu do jogo, guardar e sair). O OPTION é dispensável no início.
+
+### 3.1 Com as peças que já tens
+
+O módulo 5D tem 8 pinos: **COM** (comum) e 7 entradas (UP, DWN, LFT, RHT, MID, SET, RST). Chega para quase tudo, e só faltam 3 botões do kit (A, B e MENU):
+
+| Retro-Go | Pino do PCF8575 | Peça |
+|----------|-----------------|------|
+| LEFT | P00 | módulo 5D, pino **LFT** |
+| RIGHT | P01 | módulo 5D, pino **RHT** |
+| UP | P02 | módulo 5D, pino **UP** |
+| DOWN | P03 | módulo 5D, pino **DWN** |
+| A | P04 | botão do kit nº 1 |
+| B | P05 | botão do kit nº 2 |
+| SELECT | P06 | módulo 5D, pino **SET** (botão pequeno do módulo) |
+| START | P07 | módulo 5D, pino **RST** (botão pequeno do módulo) |
+| MENU | P10 | botão do kit nº 3 |
+| OPTION | P11 | módulo 5D, pino **MID** (carregar no centro) |
+
+- O **COM** do módulo 5D vai ao **GND**. Cada botão do kit tem um terminal no pino P e o outro no GND.
+- O "RST" do módulo é só o nome impresso de um botão. Não está ligado ao reset do CYD nem do ESP32.
+- O MID ficou no OPTION de propósito: nestes joysticks de 5 vias é fácil carregar no centro sem querer ao empurrar uma direção, e o OPTION atrapalha menos do que o MENU.
+- **Confirma com o multímetro** que SET e RST partilham o COM com as direções: modo continuidade entre COM e cada pino, com o botão correspondente premido. Não consegui verificar isto pela foto do anúncio.
+- Os pinos do módulo são de 2,54 mm, por isso dá para testar tudo sem soldar, com os fios dupont (e os botões do kit numa breadboard).
 
 ---
 
