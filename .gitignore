@@ -1,0 +1,19 @@
+# ROMs e imagens de jogos: nunca vao para este repositorio (e publico)
+roms/
+*.gb
+*.gbc
+*.gg
+*.sms
+*.nes
+*.sfc
+*.smc
+*.gba
+*.zip
+*.7z
+
+# saidas de compilacao
+.pio/
+build/
+.vscode/
+*.elf
+*.map
