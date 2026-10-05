@@ -248,3 +248,79 @@ Em I²C os módulos não ficam "em série": ficam **em paralelo** nos mesmos fio
 - **Código:** o driver PCF857x do Retro-Go faz uma única leitura de 2 bytes num só endereço. Para dois módulos teria de ler 0x20 e 0x21 e juntar os bytes, e para o PCF8574 dizer que cada um só tem 1 porta. Não li o ficheiro completo, por isso não sei o tamanho exato do remendo. **Exige compilar o firmware**, e eu não o consigo testar.
 
 Resumo: dois PCF8574 poupam a compra de um PCF8575 mas custam um remendo de código, a compilação e mexer em resistências SMD. Só compensa se o PCF8575 não se encontrar.
+
+---
+
+## 8. Alternativa mais simples para NES: Anemoia-ESP32 com um "controlo NES" próprio
+
+Em vez do Retro-Go, o [Anemoia-ESP32](https://github.com/Shim06/Anemoia-ESP32) é um emulador de NES só para NES que suporta o CYD, no estilo do CYDboy: gravação pelo [gravador web](https://shim06.github.io/Anemoia-ESP32/), ROMs `.nes` na **raiz** da microSD, menu com **Start + Select** e save states. Segundo o README corre a ~60 fps sem PSRAM e implementa os mappers 0, 1, 2, 3, 4 e 69 (cerca de 79% dos jogos). Licença GPLv3.
+
+**Limitação:** no CYD só aceita um **controlo NES/SNES** ou um **adaptador série**. Não menciona Bluetooth nem toque nem botões soltos.
+
+| Sinal | GPIO do CYD | Conector |
+|-------|-------------|----------|
+| Clock | 22 | CN1 (ou P3) |
+| Latch | 27 | CN1 |
+| Data | 35 | P3 |
+
+### 8.1 Controlo NES feito com um CD4021B
+
+O controlo original é um registo de deslocamento 4021. Dá para o imitar com 8 botões, e o teu módulo 5D com 3 botões do kit chegam: o 5D dá cima, baixo, esquerda, direita, Select (SET) e Start (RST), e dois botões do kit dão A e B.
+
+Ordem de leitura do protocolo NES: **A, B, Select, Start, Cima, Baixo, Esquerda, Direita**. O botão premido lê-se como nível baixo.
+
+Ligações do **CD4021B** (DIP-16). Os números de pino abaixo são da minha memória da folha de dados: **confirma-os na folha de dados antes de ligar** e usa o teste da secção 8.2.
+
+| Pino do CD4021B | Ligar a |
+|-----------------|---------|
+| 16 (VDD) | 3V3 |
+| 8 (VSS) | GND |
+| 9 (P/S, "latch") | GPIO27 |
+| 10 (clock) | GPIO22 |
+| 3 (Q8, saída série) | GPIO35 |
+| 11 (entrada série) | GND |
+| 1 (PI-8) | botão **A** |
+| 15 (PI-7) | botão **B** |
+| 14 (PI-6) | **Select** (SET do módulo 5D) |
+| 13 (PI-5) | **Start** (RST do módulo 5D) |
+| 4 (PI-4) | **Cima** (UP) |
+| 5 (PI-3) | **Baixo** (DWN) |
+| 6 (PI-2) | **Esquerda** (LFT) |
+| 7 (PI-1) | **Direita** (RHT) |
+
+- Cada entrada tem uma resistência de **10 kΩ ao 3V3** (pull-up), e o botão liga a entrada ao GND. O COM do módulo 5D vai ao GND.
+- O IO35 só sai no conector **P3**, e o clock e o latch no **CN1**, por isso precisas de dois cabos JST 1,25 mm de 4 pinos.
+- O CD4021B funciona de 3 V a 18 V, mas a 3,3 V é mais lento. Não sei que velocidade de clock o Anemoia usa, por isso se a leitura vier instável, o primeiro suspeito é este.
+- Alternativa de dispositivo: um controlo NES ou SNES verdadeiro (o README diz que são suportados) ligado aos mesmos três sinais, a 3,3 V.
+
+### 8.2 Testar o controlo antes de gravar o Anemoia
+
+```cpp
+const int CLK = 22, LATCH = 27, DATA = 35;
+const char* NOMES[8] = {"A","B","SELECT","START","UP","DOWN","LEFT","RIGHT"};
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(CLK, OUTPUT);  digitalWrite(CLK, LOW);
+  pinMode(LATCH, OUTPUT); digitalWrite(LATCH, LOW);
+  pinMode(DATA, INPUT);                       // IO35 não tem pull-up interno
+}
+
+void loop() {
+  digitalWrite(LATCH, HIGH); delayMicroseconds(12);
+  digitalWrite(LATCH, LOW);  delayMicroseconds(6);
+  for (int i = 0; i < 8; i++) {
+    if (digitalRead(DATA) == LOW) Serial.printf("%s ", NOMES[i]);
+    digitalWrite(CLK, HIGH); delayMicroseconds(6);
+    digitalWrite(CLK, LOW);  delayMicroseconds(6);
+  }
+  Serial.println();
+  delay(50);
+}
+```
+
+Carrega cada botão e confirma que o nome certo aparece. Se os nomes vierem trocados, a ligação desse botão ao CD4021B está num pino diferente do que escrevi. Este sketch **não foi compilado nem testado**.
+
+### 8.3 Controlo Bluetooth via segundo ESP32
+
+O README do Anemoia descreve um **segundo ESP32** com o firmware *SerialGameControllerAdapter*, que lê um controlo NES, SNES, PS1, PS2 **ou Bluetooth** e envia os botões por série ao CYD (TX do adaptador para o GPIO22 do CYD, RX do adaptador para o GPIO27). Em teoria permitiria usar o Zero 2. Mas: não encontrei o repositório do adaptador, não sei se ele aceita o Zero 2 e terias de comprar mais um ESP32. Fica como possibilidade, não como plano.
