@@ -122,6 +122,8 @@ Os limites vêm só da largura de banda do SPI (40 MHz = cerca de 5 MB/s), sem c
 
 ### 6.1 Com o CYD em pé (vertical, 240×320)
 
+**Decisão: o console fica em pé.** Isso vale para o resto do plano: Game Boy e Game Gear em ×1,5 (240×216), Master System em 240×180, faixa livre embaixo da imagem (104 px no Game Boy e no Game Gear, 140 px no Master System), botões físicos na parte de baixo da caixa como no Game Boy original. As opções "tela cheia" e ×1,67 da tabela da secção 6 só valem para o CYD deitado e ficam de fora.
+
 Em pé, a tela fica 240 de largura por 320 de altura, como um Game Boy original. O Game Boy e o Game Gear são mais largos que altos (160×144), então a imagem enche a **largura**, mas não a altura:
 
 | Sistema | Escala | Tamanho na tela | Sobra | Dados por quadro |
