@@ -177,11 +177,44 @@ void loop() {
 
 Carrega cada botão e confirma que o nome certo aparece no monitor série. Se um nome aparecer trocado, a ligação desse botão está num pino diferente do mapa da secção 3.
 
+### 5.3 Testar já com o módulo PCF8574 que tens
+
+O módulo azul com a etiqueta **PCF8574** (chip PCF8574T, cabeçalho de 8 pinos P0–P7, jumpers A0/A1/A2 e resistências de pull-up já montadas) **não serve para o Retro-Go**, que espera um PCF8575 de 16 pinos. Mas serve para testar a ligação do módulo 5D e dos botões do kit, que são 8 entradas:
+
+```cpp
+#include <Wire.h>
+
+const char* NOMES[8] = {"LEFT","RIGHT","UP","DOWN","A","B","SELECT","START"};
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(22, 27);                      // SDA = IO22, SCL = IO27
+  for (uint8_t a = 0x20; a <= 0x27; a++) { // PCF8574T: 0x20 a 0x27
+    Wire.beginTransmission(a);
+    if (Wire.endTransmission() == 0) Serial.printf("Encontrado: 0x%02X\n", a);
+  }
+  Wire.beginTransmission(0x20);            // ajusta se o scan mostrou outro endereço
+  Wire.write(0xFF);                        // todos os pinos como entrada
+  Wire.endTransmission();
+}
+
+void loop() {
+  Wire.requestFrom((uint8_t)0x20, (uint8_t)1);
+  uint8_t premidos = ~Wire.read();         // 1 = premido
+  for (int i = 0; i < 8; i++)
+    if (premidos & (1 << i)) Serial.printf("%s ", NOMES[i]);
+  Serial.println();
+  delay(100);
+}
+```
+
+Liga P0 a P7 pela ordem da tabela da secção 3.1 (LEFT em P0, RIGHT em P1, UP em P2, DOWN em P3, A em P4, B em P5, SELECT em P6, START em P7). O endereço depende dos jumpers A0/A1/A2: o scan diz qual é. Este sketch **não foi compilado nem testado**.
+
 ---
 
 ## 6. Depois
 
-1. Grava o fork `CYD` do Retro-Go. O README do fork aponta para o `BUILDING.md` do próprio repositório, que não consegui ler.
+1. Grava o Retro-Go para CYD. Há imagens prontas na release **"CYD RetroGo"** do fork (por exemplo `retro-go_1.46_cyd.img`), e as notas da release remetem para o guia do Instructables, que não consegui abrir. Segundo o `BUILDING.md` do fork, a gravação é `esptool.py write_flash --flash_size detect 0x0 retro-go_1.46_cyd.img`. Isto **apaga o CYDboy**; para voltar a ele, grava-o de novo pelo gravador web.
 2. Este fork não lê o Zero 2 nem o touch. Se quiseres os botões **e** o comando Bluetooth, é a opção B da `PROPOSTA.md`.
 3. Não verifiquei se o **CYDboy** lê botões físicos. O README dele só fala de Bluetooth e toque.
 4. O fork `CYD` tem o driver de bateria desligado, por isso o medidor de bateria da `PROPOSTA.md` não funciona nele sem alterações.
