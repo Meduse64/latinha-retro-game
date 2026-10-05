@@ -17,3 +17,6 @@ build/
 .vscode/
 *.elf
 *.map
+
+# codigo de terceiros com licenca propria (SMS Plus, Z80, MAME): so local, nunca no repositorio publico
+third_party/

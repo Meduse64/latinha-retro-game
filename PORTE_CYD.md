@@ -1,3 +1,4 @@
+O NES fica fora deste firmware por enquanto, para não juntar mais código de terceiros com licenças diferentes (o Anemoia é GPLv3). Se quiser NES, o caminho é o firmware do Anemoia separado, como descrito no `BOTOES.md`.
 # Porte do app Retro (LatinhaColor) para o CYD
 
 Este documento parte do arquivo do app Retro do firmware anterior (LatinhaColor), que você colou na conversa. Eu só vi **esse arquivo**: não tenho o `gb_core.c`, o `src/smsplus`, o restante do firmware (tela, botões, menu) nem o script `gravar_jogos.ps1`. Tudo abaixo é leitura do código colado e **não foi compilado nem testado**.
@@ -56,32 +57,21 @@ Dois detalhes:
 
 ---
 
-## 4. O que eu preciso de você
+## 4. O que já recebi e o que falta
 
-**Já recebi (colados na conversa):** `app_retro.h` (o app Retro inteiro), `gb_core.c` (adaptador do Peanut-GB), `sms.h` e `sms.c` (SMS Plus).
+**Recebido (colado ou enviado na conversa):**
 
-O que dá para concluir deles:
+- `app_retro.h` (o app Retro inteiro) e `gb_core.c` (adaptador do Peanut-GB).
+- O SMS Plus completo: `sms.c/.h`, `vdp.c/.h`, `render.c/.h`, `lut.h`, `system.c/.h`, `sn76496.c/.h`, `shared.h`, `types.h`, `z80.c/.h`, `z80daa.h`, `cpuintrf.h`, `osd_cpu.h`, `latinha_state.c` e `vrc7tone.h`.
 
-- **`gb_core.c`** é C puro, sem nada de hardware, e a interface `gbw_*` está bem separada. Deve funcionar no CYD quase sem mudança. A ROM é lida por uma função (`rom_read`), então trocar a flash por leitura do cartão SD é simples para o Game Boy. Falta só o `peanut_gb.h` da versão que você usa: a API tem de bater com o `gb_core.c` (por exemplo `gb->display.lcd_draw_line`, `gb_get_save_size_s` e `gb_init` com 6 argumentos).
-- **`sms.c` e `sms.h`** batem com o `app_retro.h` (`sms.ram` de 8 KB na estrutura, `sms.sram` alocado só quando o jogo liga o save por `latinha_alloc_sram`, `sms.dummy`, `sms_frame(skip_render)`).
-- O `sms_reset` e o `sms_mapper_w` apontam o `cpu_readmap` direto para `cart.rom + endereço`. Isso **confirma** que o SMS Plus precisa da ROM como memória endereçável. Por isso o plano da seção 5 copia a ROM do cartão para a flash ao escolher o jogo: ler um banco de 16 KB do cartão a cada troca de página seria lento, porque alguns jogos trocam de banco várias vezes por quadro.
-- O código de som do PSG (SN76496) já está no `sms_frame`, mas desligado pelo `emu_system_init(0)`. Ligar o som no GPIO26 depois é viável.
+**Verificado aqui (compilador do computador, não o do ESP32):**
 
-**Dá para começar só com isso** pelas fases 1 a 3 (esqueleto, cartão SD e Game Boy), porque o código do CYD (tela, botões, menu) eu escrevo novo.
+- O `peanut_gb.h` oficial (MIT, branch `master` do Peanut-GB) tem todos os símbolos que o `gb_core.c` usa, e o `gb_core.c` compila sem erro com ele. O `struct gb_s` tem 16 984 bytes em 64 bits, dentro da reserva de 18 432 (`0x4800`).
+- Os 8 arquivos `.c` do SMS Plus passam na verificação de sintaxe e **ligam sem nenhum símbolo faltando**. O estado do SMS (`t_vdp` + `t_sms` + `Z80_Regs` + 1 inteiro) soma 24 936 bytes em 64 bits, dentro da reserva de 26 624 (`0x6800`). No ESP32 os ponteiros são menores, então fica ainda abaixo.
 
-**Falta para a fase 4 (Game Gear e Master System).** Os nomes são os do SMS Plus original; os seus podem ser diferentes:
+**Não preciso de mais nada para começar.** O código do CYD (tela, botões, menu) eu escrevo novo. Não são necessários o `gravar_jogos.ps1` nem o esquema de partições se as ROMs forem lidas do cartão SD (seção 5).
 
-1. `shared.h` (os tipos `uint8` etc. e os `#include` do SMS Plus).
-2. `system.c` e `system.h` (`emu_system_init`, `system_reset` e as estruturas `input`, `bitmap`, `snd` e `cart`).
-3. `render.c` e `render.h` (`render_line`, `cacheStore` e a chamada a `latinha_sms_line`).
-4. `vdp.c` e `vdp.h`.
-5. O núcleo do Z80 e o `sn76496.c`.
-6. O arquivo onde estão `latinha_sms_piece`, `latinha_sms_before_load` e `latinha_sms_after_load` (o save state), se for diferente dos acima.
-7. O `peanut_gb.h`.
-
-Para manter o formato dos jogos gravados, também o `gravar_jogos.ps1` e o esquema de partições (só se quiser manter o índice).
-
-**Como enviar:** pode colar aqui, arquivo por arquivo, como você vem fazendo. Ou copiar a pasta para este repositório (por exemplo `latinha-color/`) e dar push na branch `claude/retro-game-proposal-07kbyg`, **sem as ROMs**. O `.gitignore` já bloqueia `roms/` e as extensões `.gb`, `.gbc`, `.gg`, `.sms`, `.nes`, `.sfc`, `.smc` e `.gba`, porque o repositório é público. Se o código estiver em outro repositório seu no GitHub, o acesso a ele não está liberado para esta sessão.
+**O que não consegui verificar:** compilar para o ESP32. Aqui o PlatformIO e a toolchain da Espressif estão bloqueados pela rede, então tudo que eu escrever para o CYD será compilado pela primeira vez no seu computador.
 
 ---
 
@@ -173,4 +163,17 @@ O NES fica de fora por enquanto: o Anemoia-ESP32 é GPLv3 e o SMS Plus é GPL v2
 
 ## 8. Licenças
 
-O repositório é público. O SMS Plus é **GPL v2**: o firmware que o inclui, se for distribuído ou publicado, precisa seguir a GPL v2 (e manter os avisos de copyright). O Peanut-GB é MIT. Quando o código entrar aqui, adiciono um `LICENSE` e os avisos no lugar certo.
+O repositório é público, e os arquivos que você enviou têm licenças diferentes. Não sou advogado; isto é leitura dos cabeçalhos.
+
+| Código | O que o cabeçalho diz |
+|--------|-----------------------|
+| **Peanut-GB** (Mahyar Koshkouei) | MIT. Pode ficar no repositório, com o aviso de copyright. |
+| **SMS Plus** (Charles Mac Donald), por exemplo `system.c` | GPL v2 "ou qualquer versão posterior". |
+| **Z80** (`z80.c`, Juergen Buchmueller) | "Freeware para fins **não comerciais**". Pede crédito ao autor, um aviso em cada arquivo modificado e contato para uso comercial, e reserva o direito de mudar os termos a qualquer momento, inclusive retroativamente. **Isso não é GPL.** |
+| `cpuintrf.h` e `osd_cpu.h` | Vêm do MAME, que antes tinha uma licença parecida (não comercial). Esses dois arquivos não têm cabeçalho de licença no que você enviou. |
+
+Consequências:
+
+1. **Uso pessoal** no seu console: sem problema.
+2. **Este repositório público não vai receber os arquivos do SMS Plus, do Z80 nem do MAME.** Eles ficam numa pasta que o git ignora (`third_party/`), e o projeto do CYD os pega da sua cópia do LatinhaColor (um script copia). O repositório terá só código novo, o Peanut-GB (MIT) e a documentação.
+3. **Vender ou distribuir** o console com esse firmware seria uso comercial e redistribuição. Aí é preciso resolver o Z80: pedir autorização ao autor ou trocar o núcleo por um livre.
