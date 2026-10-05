@@ -83,7 +83,7 @@ Na primeira foto os fios da LiPo parecem ter as pontas descobertas. Isola cada f
 
 **V1 (recomendada): Zero 2 por Bluetooth.** Sem fios nem soldaduras. O touch e o botão BOOT ficam como alternativa, para testar sem o comando.
 
-**V2 (opcional): botões próprios** num expansor I²C (MCP23017 ou PCF8574) ligado a CN1 (IO22 = SCL, IO27 = SDA). Dá 8–16 botões com só 2 GPIO, porque só há 3 livres. O cabo de 4 fios da foto serve para isto.
+**V2 (opcional): botões próprios** num expansor I²C **PCF8575** (16 pinos, o que o Retro-Go para CYD espera) ligado a CN1 (IO22 = SDA, IO27 = SCL). Dá até 16 botões com só 2 GPIO, porque só há 3 livres. O cabo de 4 fios da foto serve para isto. O guia de ligação, o mapa de botões e os testes estão em [`BOTOES.md`](BOTOES.md).
 
 ---
 

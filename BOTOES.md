@@ -1,0 +1,163 @@
+# Botões físicos no CYD
+
+Guia para ligar botões ao CYD (ESP32-2432S028R) de modo a funcionarem com o **Retro-Go** (fork `CYD` de DynaMight1124), que lê os botões de um expansor I²C.
+
+Os pinos e o mapa de botões abaixo vêm do ficheiro `components/retro-go/targets/cyd/config.h` desse fork. O resto (chips, módulos, truques de ligação) é conhecimento geral meu e **não foi testado neste hardware**.
+
+---
+
+## 1. Porque é preciso um expansor
+
+O CYD só tem 3 GPIOs livres (IO35, IO22, IO27) e o Retro-Go precisa de 10 botões. A solução é um expansor I²C que usa só 2 fios (IO22 e IO27) e dá 16 entradas.
+
+O Retro-Go para CYD está configurado para o **PCF8575** (16 pinos), no endereço **0x20**:
+
+```c
+#define RG_I2C_GPIO_DRIVER  4      // 1 = AW9523, 2 = PCF9539, 3 = MCP23017, 4 = PCF8575
+#define RG_I2C_GPIO_ADDR    0x20
+#define RG_GPIO_I2C_SDA     GPIO_NUM_22
+#define RG_GPIO_I2C_SCL     GPIO_NUM_27
+```
+
+O código também conhece outros expansores (AW9523, PCF9539, MCP23017), mas para os usar tinhas de alterar o `config.h` e compilar o firmware tu. **Compra o PCF8575 e não precisas de compilar nada.**
+
+Cuidado: o **PCF8574** (8 pinos, mais comum e barato) **não serve**, só dá 8 botões e o Retro-Go não está configurado para ele.
+
+---
+
+## 2. O que comprar
+
+| Peça | Quantidade | Nota |
+|------|-----------|------|
+| Módulo **PCF8575** (16 bits, I²C) | 1 | Tem de dizer PCF8575. Verifica se os pinos de endereço A0, A1, A2 estão acessíveis |
+| Botões de pressão (tactile, 6×6 mm ou maiores) | 10 | Pode ser menos, ver secção 3 |
+| Fio fino (28–30 AWG) | alguns metros | Cores diferentes ajudam |
+| Placa perfurada ou a caixa impressa em 3D | opcional | Para fixar os botões |
+| Termorretrátil, ferro de soldar, estanho | — | — |
+| Multímetro | 1 | Para identificar os fios do cabo do CYD |
+
+---
+
+## 3. Mapa de botões (do `config.h`)
+
+Cada botão liga entre **o pino do expansor** e **GND**. Pelo que entendo do `config.h` (`.level = 0`, `.pullup = 0`), o Retro-Go trata o nível baixo como "premido" e não liga pull-ups por software, por isso ligar ao GND é o esquema certo.
+
+| Botão no Retro-Go | Bit no código | Pino do PCF8575 | Zero 2 equivalente |
+|-------------------|--------------|-----------------|--------------------|
+| LEFT (esquerda) | 0 | P00 | D-pad esquerda |
+| RIGHT (direita) | 1 | P01 | D-pad direita |
+| UP (cima) | 2 | P02 | D-pad cima |
+| DOWN (baixo) | 3 | P03 | D-pad baixo |
+| A | 4 | P04 | A |
+| B | 5 | P05 | B |
+| SELECT | 6 | P06 | Select |
+| START | 7 | P07 | Start |
+| MENU | 8 | P10 | (menu do Retro-Go) |
+| OPTION | 9 | P11 | (opções do Retro-Go) |
+
+A correspondência entre bit e pino é uma dedução minha: o código monta os botões como `(porta1 << 8) | porta0`, por isso os bits 0–7 são a porta 0 (P00–P07) e os bits 8–9 são P10 e P11. **Confirma os nomes impressos no teu módulo**, porque alguns chamam-lhes P0–P15 em vez de P00–P17.
+
+Mínimo útil: os 4 do D-pad, A, B, Select, Start e **MENU** (para abrir o menu do jogo, guardar e sair). O OPTION é dispensável no início.
+
+---
+
+## 4. Ligações
+
+### 4.1 Do módulo ao CYD (conector CN1)
+
+| PCF8575 | CYD (CN1) |
+|---------|-----------|
+| VCC | 3V3 |
+| GND | GND |
+| SDA | IO22 |
+| SCL | IO27 |
+| A0, A1, A2 | GND (dá o endereço 0x20) |
+| INT | não ligar |
+
+O CN1 é o conector de 4 pinos (JST 1,25 mm) que o CYD tem para expansão. Os pinos são **GND, IO22, IO27 e 3V3**, mas **a ordem no conector tem de ser confirmada lendo as letras impressas na placa**. As cores do cabo da foto (preto, amarelo, vermelho, azul) não seguem um padrão garantido: usa o multímetro em modo de continuidade entre cada fio e o pino GND do CYD, e entre o fio da 3V3 e a saída 3V3 de outro conector, antes de ligar.
+
+Não ligues mais nada ao IO22: é partilhado com o conector P3.
+
+### 4.2 Dos botões ao módulo
+
+```
+          PCF8575
+        ┌─────────┐
+ 3V3 ───┤VCC   P00├──[botão LEFT ]──┐
+ GND ───┤GND   P01├──[botão RIGHT]──┤
+ IO22 ──┤SDA   P02├──[botão UP   ]──┤
+ IO27 ──┤SCL   P03├──[botão DOWN ]──┤
+ GND ───┤A0    P04├──[botão A    ]──┤
+ GND ───┤A1    P05├──[botão B    ]──┤
+ GND ───┤A2    P06├──[botão SELECT]─┤
+        │      P07├──[botão START ]─┤
+        │      P10├──[botão MENU  ]─┤
+        │      P11├──[botão OPTION]─┤
+        └─────────┘                 │
+                                   GND (comum a todos)
+```
+
+Cada botão tem um lado no pino P e o outro lado no GND comum.
+
+---
+
+## 5. Antes de gravar o Retro-Go: testar
+
+Estes testes evitam procurar erros no emulador quando o problema é uma soldadura. Os dois sketches são curtos e simples, mas **não os compilei nem testei** neste ambiente.
+
+### 5.1 O expansor responde?
+
+Com um sketch Arduino (placa `ESP32 Dev Module`) que percorra os endereços I²C nos pinos certos:
+
+```cpp
+#include <Wire.h>
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(22, 27);                      // SDA = IO22, SCL = IO27
+  for (uint8_t a = 1; a < 127; a++) {
+    Wire.beginTransmission(a);
+    if (Wire.endTransmission() == 0) Serial.printf("Encontrado: 0x%02X\n", a);
+  }
+}
+void loop() {}
+```
+
+Tem de aparecer **0x20**. Se não aparecer nada, verifica a soldadura, A0/A1/A2 a GND e os fios de SDA/SCL. Se o módulo não trouxer resistências de pull-up nas linhas SDA e SCL, acrescenta uma de 4,7 kΩ a 10 kΩ de cada linha para 3V3.
+
+### 5.2 Os botões chegam ao ESP32?
+
+```cpp
+#include <Wire.h>
+
+const char* NOMES[10] = {"LEFT","RIGHT","UP","DOWN","A","B","SELECT","START","MENU","OPTION"};
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(22, 27);
+  Wire.beginTransmission(0x20);            // põe todos os pinos como entrada (nível alto)
+  Wire.write(0xFF); Wire.write(0xFF);
+  Wire.endTransmission();
+}
+
+void loop() {
+  Wire.requestFrom((uint8_t)0x20, (uint8_t)2);
+  uint8_t lo = Wire.read(), hi = Wire.read();
+  uint16_t premidos = ~((hi << 8) | lo);   // 1 = premido
+  for (int i = 0; i < 10; i++)
+    if (premidos & (1 << i)) Serial.printf("%s ", NOMES[i]);
+  Serial.println();
+  delay(100);
+}
+```
+
+Carrega cada botão e confirma que o nome certo aparece no monitor série. Se um nome aparecer trocado, a ligação desse botão está num pino diferente do mapa da secção 3.
+
+---
+
+## 6. Depois
+
+1. Grava o fork `CYD` do Retro-Go. O README do fork aponta para o `BUILDING.md` do próprio repositório, que não consegui ler.
+2. Este fork não lê o Zero 2 nem o touch. Se quiseres os botões **e** o comando Bluetooth, é a opção B da `PROPOSTA.md`.
+3. Não verifiquei se o **CYDboy** lê botões físicos. O README dele só fala de Bluetooth e toque.
+4. O fork `CYD` tem o driver de bateria desligado, por isso o medidor de bateria da `PROPOSTA.md` não funciona nele sem alterações.
