@@ -124,6 +124,8 @@ O CYD é um ESP32 clássico: 240 MHz, cerca de 320 kB de SRAM utilizável, **sem
 | **SNES** | **Não é prático** | snes9x 2005 (Retro-Go) | O próprio Retro-Go marca-o como lento. Só a memória (128 kB WRAM + 64 kB VRAM + 64 kB áudio + framebuffer) já ultrapassa os ~320 kB |
 | **GBA** | **Não** | — | Só a memória do sistema (32 kB + 256 kB + 96 kB de VRAM) é cerca de 384 kB, mais do que a SRAM do CYD, e as ROMs chegam a 32 MB |
 
+**Decisão:** SNES e GBA ficam para uma fase futura. Com este CYD não são viáveis (ver tabela), por isso exigiriam outra placa com mais memória, que ainda não foi escolhida.
+
 Estado de confiança:
 - **Game Boy e Game Boy Color**: confirmados por projetos que correm no CYD (CYDboy, cyd-gb), com Bluetooth.
 - **NES, Master System e Game Gear**: o fork do Retro-Go para o CYD (branch `CYD` de DynaMight1124) existe, e as descrições que encontrei dizem que sem PSRAM corre Game Boy, Color, NES, Game Gear, Master System, PC Engine e Lynx. Não consegui abrir as páginas originais (Instructables e Thingiverse estão bloqueadas aqui) nem testei nada.
