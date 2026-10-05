@@ -324,3 +324,45 @@ Carrega cada botão e confirma que o nome certo aparece. Se os nomes vierem troc
 ### 8.3 Controlo Bluetooth via segundo ESP32
 
 O README do Anemoia descreve um **segundo ESP32** com o firmware *SerialGameControllerAdapter*, que lê um controlo NES, SNES, PS1, PS2 **ou Bluetooth** e envia os botões por série ao CYD (TX do adaptador para o GPIO22 do CYD, RX do adaptador para o GPIO27). Em teoria permitiria usar o Zero 2. Mas: não encontrei o repositório do adaptador, não sei se ele aceita o Zero 2 e terias de comprar mais um ESP32. Fica como possibilidade, não como plano.
+
+---
+
+## 9. Joystick Shield (Funduino V1.A) que você já tem
+
+É um shield de Arduino Uno com um analógico, 6 botões grandes (A a F) e o botão K (apertar o analógico). Pela descrição das lojas ([ProtoSupplies](https://protosupplies.com/product/funduino-joystick-shield-v1-a/), [CRCibernética](https://www.crcibernetica.com/funduino-joystick-shield/)), as ligações no Arduino são:
+
+| Componente | Pino do Arduino |
+|------------|-----------------|
+| Botão A | D2 |
+| Botão B | D3 |
+| Botão C | D4 |
+| Botão D | D5 |
+| Botão E | D6 |
+| Botão F | D7 |
+| K (apertar o analógico) | D8 |
+| Eixo X | A0 |
+| Eixo Y | A1 |
+
+Os botões, segundo as mesmas fontes, costumam ser usados com o pull-up interno do Arduino, ou seja, ligam o pino ao GND ao apertar. **Confirme com o multímetro** (modo continuidade entre o pino e o GND com o botão apertado) antes de ligar, porque não consegui ver o esquema.
+
+### O que ele ajuda e o que não ajuda
+
+- **Ajuda como fonte de botões grandes e confortáveis.** São 7 botões digitais (A a F e K). Cada um liga o pino do shield ao GND, e o PCF8574 tem pull-up fraco interno, então dá para ligar direto nas entradas dele.
+- **Não ajuda como D-pad.** O analógico precisa de duas entradas analógicas, e o CYD só deixa livre o IO35 (o IO22 e o IO27 já são do I²C). Teria que comprar um conversor I²C tipo ADS1115, e um analógico é pior que o módulo 5D para jogos de D-pad. Use o 5D para as direções.
+- **É grande.** Tem o tamanho de um Arduino Uno (cerca de 69×53 mm), parecido com o do CYD. Serve bem como **controle de bancada** para testar os emuladores, mas não cabe num portátil compacto.
+
+### Mapeamento sugerido para testes (CYD em pé, firmware próprio)
+
+| Pino do PCF8574 | Tecla do app | Peça |
+|-----------------|--------------|------|
+| P0 | `KEY_UP` | módulo 5D: UP |
+| P1 | `KEY_DOWN` | módulo 5D: DWN |
+| P2 | `KEY_LEFT` | módulo 5D: LFT |
+| P3 | `KEY_RIGHT` | módulo 5D: RHT |
+| P4 | `KEY_OK` (A no Game Boy) | shield: **A** (D2) |
+| P5 | `KEY_BACK` (B no Game Boy) | shield: **B** (D3) |
+| P6 | `KEY_B` (Start) | shield: **C** (D4) |
+| P7 | `KEY_A` (Select) | shield: **D** (D5) |
+| GPIO0 | `KEY_HOME` (pausa) | botão BOOT do CYD |
+
+Os botões E, F e K ficam sobrando. Se quiser o menu de pausa num botão grande em vez do BOOT, falta um pino: aí entra o toque na faixa livre da tela (em pé) ou um segundo PCF8574.

@@ -58,15 +58,30 @@ Dois detalhes:
 
 ## 4. O que eu preciso de você
 
-Só tenho o arquivo do app. Para montar o projeto do CYD preciso dos outros arquivos do firmware anterior:
+**Já recebi (colados na conversa):** `app_retro.h` (o app Retro inteiro), `gb_core.c` (adaptador do Peanut-GB), `sms.h` e `sms.c` (SMS Plus).
 
-1. `gb_core.c` e o `peanut_gb.h`, com os wrappers `gbw_*`.
-2. A pasta `src/smsplus/` inteira, incluindo as alterações que você fez (`latinha_sms_line`, `latinha_sms_piece`, `latinha_alloc_sram`, `sms_frame`, `emu_system_init`).
-3. A parte do firmware que define o que o app usa: `gfx` (e `getBuffer()`), `flush()`, `SW`/`SH`, `rgb()`, as cores `C_*`, `txt`/`txtC`/`txtR`/`statusBar`/`hint`, `keys[]`, `Key`, `BtnEvt`, `isPress`, `appOwnsScreen`.
-4. O esquema de partições (arquivo CSV ou a opção da placa) e o `gravar_jogos.ps1`.
-5. O `platformio.ini` ou a configuração do Arduino (placa, bibliotecas e versões).
+O que dá para concluir deles:
 
-**Como enviar:** copie tudo para uma pasta deste repositório (por exemplo `latinha-color/`) e dê push na branch `claude/retro-game-proposal-07kbyg`. **Sem as ROMs.** Deixei um `.gitignore` que bloqueia `roms/` e as extensões `.gb`, `.gbc`, `.gg`, `.sms`, `.nes`, `.sfc`, `.smc` e `.gba`, porque o repositório é público. Se o firmware anterior estiver em outro repositório do GitHub, ele não está liberado para esta sessão: dá para liberar nas configurações do app do Claude no GitHub.
+- **`gb_core.c`** é C puro, sem nada de hardware, e a interface `gbw_*` está bem separada. Deve funcionar no CYD quase sem mudança. A ROM é lida por uma função (`rom_read`), então trocar a flash por leitura do cartão SD é simples para o Game Boy. Falta só o `peanut_gb.h` da versão que você usa: a API tem de bater com o `gb_core.c` (por exemplo `gb->display.lcd_draw_line`, `gb_get_save_size_s` e `gb_init` com 6 argumentos).
+- **`sms.c` e `sms.h`** batem com o `app_retro.h` (`sms.ram` de 8 KB na estrutura, `sms.sram` alocado só quando o jogo liga o save por `latinha_alloc_sram`, `sms.dummy`, `sms_frame(skip_render)`).
+- O `sms_reset` e o `sms_mapper_w` apontam o `cpu_readmap` direto para `cart.rom + endereço`. Isso **confirma** que o SMS Plus precisa da ROM como memória endereçável. Por isso o plano da seção 5 copia a ROM do cartão para a flash ao escolher o jogo: ler um banco de 16 KB do cartão a cada troca de página seria lento, porque alguns jogos trocam de banco várias vezes por quadro.
+- O código de som do PSG (SN76496) já está no `sms_frame`, mas desligado pelo `emu_system_init(0)`. Ligar o som no GPIO26 depois é viável.
+
+**Dá para começar só com isso** pelas fases 1 a 3 (esqueleto, cartão SD e Game Boy), porque o código do CYD (tela, botões, menu) eu escrevo novo.
+
+**Falta para a fase 4 (Game Gear e Master System).** Os nomes são os do SMS Plus original; os seus podem ser diferentes:
+
+1. `shared.h` (os tipos `uint8` etc. e os `#include` do SMS Plus).
+2. `system.c` e `system.h` (`emu_system_init`, `system_reset` e as estruturas `input`, `bitmap`, `snd` e `cart`).
+3. `render.c` e `render.h` (`render_line`, `cacheStore` e a chamada a `latinha_sms_line`).
+4. `vdp.c` e `vdp.h`.
+5. O núcleo do Z80 e o `sn76496.c`.
+6. O arquivo onde estão `latinha_sms_piece`, `latinha_sms_before_load` e `latinha_sms_after_load` (o save state), se for diferente dos acima.
+7. O `peanut_gb.h`.
+
+Para manter o formato dos jogos gravados, também o `gravar_jogos.ps1` e o esquema de partições (só se quiser manter o índice).
+
+**Como enviar:** pode colar aqui, arquivo por arquivo, como você vem fazendo. Ou copiar a pasta para este repositório (por exemplo `latinha-color/`) e dar push na branch `claude/retro-game-proposal-07kbyg`, **sem as ROMs**. O `.gitignore` já bloqueia `roms/` e as extensões `.gb`, `.gbc`, `.gg`, `.sms`, `.nes`, `.sfc`, `.smc` e `.gba`, porque o repositório é público. Se o código estiver em outro repositório seu no GitHub, o acesso a ele não está liberado para esta sessão.
 
 ---
 
