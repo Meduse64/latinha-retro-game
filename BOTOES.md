@@ -238,3 +238,13 @@ Pelo código do fork (`rg_input.c`):
 Com um PCF8574 ficam 8 entradas: D-pad, A, B, Select e Start. Menu e Option iriam para GPIO0 e IO35.
 
 Para Game Boy e Game Boy Color o **CYDboy** já tem controlos no ecrã por toque, que desaparecem quando um comando Bluetooth emparelha. Para esses dois sistemas não é preciso programar nada.
+
+### 7.1 Dois PCF8574 no mesmo barramento
+
+Em I²C os módulos não ficam "em série": ficam **em paralelo** nos mesmos fios SDA e SCL (o conector J5 do teu módulo é só uma segunda saída desses fios, para ligar o módulo seguinte), e cada um tem um endereço diferente, definido pelos jumpers A0/A1/A2. Dois PCF8574 (0x20 e 0x21) dão 16 entradas, as mesmas do PCF8575.
+
+- **Ligação:** módulo 1 (0x20) com P0–P7 nos bits 0–7 (LEFT a START), módulo 2 (0x21) com P0 em MENU e P1 em OPTION. Muda o jumper A0 de um dos módulos para ter endereços diferentes e confirma com o scanner da secção 5.1.
+- **Pull-ups:** cada módulo traz resistências em SDA e SCL (R1 e R2). Pela foto parecem marcadas **102**, ou seja, 1 kΩ. Dois módulos em paralelo dão cerca de 500 Ω, o que é forte demais para o barramento. Tira (dessolda) R1 e R2 de **um** dos módulos.
+- **Código:** o driver PCF857x do Retro-Go faz uma única leitura de 2 bytes num só endereço. Para dois módulos teria de ler 0x20 e 0x21 e juntar os bytes, e para o PCF8574 dizer que cada um só tem 1 porta. Não li o ficheiro completo, por isso não sei o tamanho exato do remendo. **Exige compilar o firmware**, e eu não o consigo testar.
+
+Resumo: dois PCF8574 poupam a compra de um PCF8575 mas custam um remendo de código, a compilação e mexer em resistências SMD. Só compensa se o PCF8575 não se encontrar.
