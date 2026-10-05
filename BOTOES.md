@@ -218,3 +218,23 @@ Liga P0 a P7 pela ordem da tabela da secção 3.1 (LEFT em P0, RIGHT em P1, UP e
 2. Este fork não lê o Zero 2 nem o touch. Se quiseres os botões **e** o comando Bluetooth, é a opção B da `PROPOSTA.md`.
 3. Não verifiquei se o **CYDboy** lê botões físicos. O README dele só fala de Bluetooth e toque.
 4. O fork `CYD` tem o driver de bateria desligado, por isso o medidor de bateria da `PROPOSTA.md` não funciona nele sem alterações.
+
+---
+
+## 7. Poupar entradas: toque ou GPIOs diretos
+
+Se quiseres usar o PCF8574 de 8 pinos que já tens, ou simplesmente ter menos botões físicos, há duas ideias. **Nenhuma delas funciona com a imagem pronta do Retro-Go**: exigem alterar o código e compilar o firmware (ESP-IDF 4.4.8, `python rg_tool.py build-img`). Não as testei.
+
+Pelo código do fork (`rg_input.c`):
+- **Não há suporte a toque.** Só lê ADC, GPIOs, expansor I²C, teclado e porta série.
+- **GPIOs diretos e expansor I²C podem coexistir.** Os dois mapas (`RG_GAMEPAD_GPIO_MAP` e `RG_GAMEPAD_I2C_MAP`) são somados no mesmo estado dos botões.
+
+| Ideia | O que muda | Esforço |
+|-------|-----------|---------|
+| **Botões no toque** (Start, Select, Menu, Option) | Escrever um driver do XPT2046 (pinos 25, 32, 33, 36, 39), zonas de toque no ecrã e calibração, mais o driver do PCF8574 | Alto. Dois remendos novos |
+| **GPIOs diretos** para Menu e Option | Só editar o `config.h`: Menu no botão **BOOT** (GPIO0, já na placa) e Option no **IO35** (precisa de uma resistência de 10 kΩ ao 3V3, porque o IO35 não tem pull-up interno). Com o PCF8574, ainda falta o driver dele | Baixo (com PCF8575) ou médio (com PCF8574) |
+| **Comprar o PCF8575** | Nada | Nenhum |
+
+Com um PCF8574 ficam 8 entradas: D-pad, A, B, Select e Start. Menu e Option iriam para GPIO0 e IO35.
+
+Para Game Boy e Game Boy Color o **CYDboy** já tem controlos no ecrã por toque, que desaparecem quando um comando Bluetooth emparelha. Para esses dois sistemas não é preciso programar nada.
