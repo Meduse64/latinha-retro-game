@@ -118,15 +118,20 @@ O CYD é um ESP32 clássico: 240 MHz, cerca de 320 kB de SRAM utilizável, **sem
 |---------|---------|---------------|-------|
 | **Game Boy (DMG)** | **Sim, já existe para o CYD** | Walnut-CGB / Peanut-GB (MIT) | O projeto **CYDboy** corre-o a 50+ fps sem PSRAM, com ROMs lidas da SD |
 | **Game Boy Color** | **Sim, já existe para o CYD** | Walnut-CGB (CYDboy) | Cores CGB, VRAM e WRAM com bancos, som de 4 canais, save states |
-| **NES** | Provável, a validar | nofrendo (usado no Retro-Go) | Pouca RAM (2 kB + 2 kB + framebuffer de 61 kB). O risco é o ecrã (256×240) e as ROMs grandes |
-| **Master System** | Provável, a validar | smsplus (usado no Retro-Go) | Z80 a 3,58 MHz, muito leve |
-| **Game Gear** | Provável, a validar | smsplus | Mesmo núcleo do Master System, ecrã 160×144 |
+| **NES** | **Sim, no Retro-Go para CYD** (sem PSRAM, segundo as fontes; não testei) | nofrendo (Retro-Go) | Pouca RAM (2 kB + 2 kB + framebuffer de 61 kB). **Mas o Retro-Go para CYD não tem Bluetooth** (ver "Comando") |
+| **Master System** | **Sim, no Retro-Go para CYD** (idem) | smsplus (Retro-Go) | Z80 a 3,58 MHz, muito leve |
+| **Game Gear** | **Sim, no Retro-Go para CYD** (idem) | smsplus | Mesmo núcleo do Master System, ecrã 160×144 |
 | **SNES** | **Não é prático** | snes9x 2005 (Retro-Go) | O próprio Retro-Go marca-o como lento. Só a memória (128 kB WRAM + 64 kB VRAM + 64 kB áudio + framebuffer) já ultrapassa os ~320 kB |
 | **GBA** | **Não** | — | Só a memória do sistema (32 kB + 256 kB + 96 kB de VRAM) é cerca de 384 kB, mais do que a SRAM do CYD, e as ROMs chegam a 32 MB |
 
-Estado de confiança: Game Boy e Game Boy Color estão **confirmados** por projetos que correm no CYD (CYDboy, cyd-gb). NES, Master System e Game Gear são sistemas que o Retro-Go suporta em ESP32, e há forks dele para o CYD, mas **não verifiquei a memória sem PSRAM nem a velocidade**. SNES e GBA são conclusões minhas a partir da memória necessária, não testes.
+Estado de confiança:
+- **Game Boy e Game Boy Color**: confirmados por projetos que correm no CYD (CYDboy, cyd-gb), com Bluetooth.
+- **NES, Master System e Game Gear**: o fork do Retro-Go para o CYD (branch `CYD` de DynaMight1124) existe, e as descrições que encontrei dizem que sem PSRAM corre Game Boy, Color, NES, Game Gear, Master System, PC Engine e Lynx. Não consegui abrir as páginas originais (Instructables e Thingiverse estão bloqueadas aqui) nem testei nada.
+- **SNES e GBA**: conclusões minhas a partir da memória necessária. As mesmas descrições dizem que os emuladores mais pesados do Retro-Go precisam de PSRAM, que no CYD só se obtém com uma modificação de hardware delicada.
 
-**Comando:** o Zero 2 tem D-pad, A, B, X, Y, Select e Start, o suficiente para Game Boy, Color, NES, Master System e Game Gear. Não tem L/R, que o SNES e o GBA usam. O CYDboy já usa o Bluepad32, a mesma biblioteca do Zero 2 (a documentação do CYDboy lista "8BitDo" em geral, sem confirmar o Zero 2: testar).
+**Comando:** o Zero 2 tem D-pad, A, B, X, Y, Select e Start, o suficiente para Game Boy, Color, NES, Master System e Game Gear. Não tem L/R, que o SNES e o GBA usam. O CYDboy usa o Bluepad32, a mesma biblioteca do Zero 2 (a documentação lista "8BitDo" em geral, sem confirmar o Zero 2: testar).
+
+**O problema do Retro-Go para CYD:** no ficheiro de configuração do alvo `cyd`, todos os botões vêm de um expansor I²C **PCF8575** ligado a GPIO22 (SDA) e GPIO27 (SCL), que são os pinos do conector CN1. **Não há Bluetooth** nem entradas por touch definidos, e o driver de bateria está desligado. Ou seja, com o Zero 2 por Bluetooth o Retro-Go não funciona tal como está.
 
 ### Arquitetura proposta
 
@@ -141,7 +146,15 @@ Estado de confiança: Game Boy e Game Boy Color estão **confirmados** por proje
 
 1. **Já**: grava o CYDboy no CYD, põe uma microSD com uma ROM Game Boy tua e emparelha o Zero 2. Isto valida o hardware, o Bluetooth e a velocidade em horas, sem escrever código.
 2. Depois, ligamos o resto (bateria e boost, secção 2).
-3. Só então tentamos NES, Master System e Game Gear, medindo a memória livre e os fps de cada um.
+3. Para NES, Master System e Game Gear há três opções:
+
+| Opção | O que é | Prós | Contras |
+|-------|---------|------|---------|
+| **A. Retro-Go com botões físicos** | Gravar o fork `CYD` do Retro-Go e ligar botões a um PCF8575 em CN1 (o cabo de 4 fios da foto serve) | Já existe e foi pensado para este ecrã; junta GB, GBC, NES, SMS, GG num só menu | Obriga a soldar cerca de 10 botões e um módulo PCF8575; o Zero 2 fica de fora; a bateria não é medida |
+| **B. Retro-Go + Bluetooth** | Acrescentar o Bluepad32 ao Retro-Go para usar o Zero 2 | Um só firmware, com o comando que já tens | Trabalho de programação; a pilha Bluetooth gasta RAM e pode não caber sem PSRAM; só se sabe testando no teu hardware |
+| **C. Firmware próprio** | O lançador com núcleos separados (arquitetura acima) | Controlo total | O maior trabalho |
+
+Recomendo a **B**: é a única que usa o teu Zero 2 sem comprar nem soldar nada. O risco é a RAM do Bluetooth, e só se descobre testando no teu hardware. A opção A só serve de teste rápido se aceitares comprar um módulo PCF8575 e botões, porque o Retro-Go não é navegável sem eles.
 
 Os jogos próprios (secção 6) passam a ser opcionais.
 
