@@ -177,3 +177,25 @@ Consequências:
 1. **Uso pessoal** no seu console: sem problema.
 2. **Este repositório público não vai receber os arquivos do SMS Plus, do Z80 nem do MAME.** Eles ficam numa pasta que o git ignora (`third_party/`), e o projeto do CYD os pega da sua cópia do LatinhaColor (um script copia). O repositório terá só código novo, o Peanut-GB (MIT) e a documentação.
 3. **Vender ou distribuir** o console com esse firmware seria uso comercial e redistribuição. Aí é preciso resolver o Z80: pedir autorização ao autor ou trocar o núcleo por um livre.
+
+---
+
+## 9. Os outros apps do LatinhaColor (Jogos, Bichinho, Internet)
+
+Também recebi `app_jogos.h`, `app_console.h` (Snake, Flappy, Dino), `app_gw.h` (Game & Watch: Paraquedas, Fogo, Ovos), `app_bichinho.h` e `app_internet.h`. Eles não são o foco do porte, mas mostram uma coisa útil.
+
+**Todos desenham numa tela lógica de 160×128**, com coordenadas fixas no código (`SW` = 160, `SH` = 128). Como 160 × 1,5 = **240**, essa tela lógica ampliada ×1,5 cabe exatamente na largura do CYD em pé: **240×192**, sobrando uma faixa de 128 px embaixo. Daria para rodar esses apps **sem mudar as coordenadas**, só ampliando a imagem no final.
+
+Isso sugere dois caminhos de desenho no firmware do CYD:
+
+| Caminho | Quando | Como |
+|---------|--------|------|
+| **Tela lógica 160×128, ampliada ×1,5** | Menus, Snake, Flappy, Dino, Game & Watch, Bichinho, Internet | Mesmo código dos apps. Buffer de 16 bits de 40 KB, empurrado à tela em 240×192 |
+| **Direto, resolução própria** | Game Boy, Game Gear e Master System | As linhas do emulador vão à tela em 240×216 (GB e GG) ou 240×180 (SMS), sem buffer completo |
+
+**Para portar esses apps** eu precisaria do arquivo do firmware que define o que eles usam: `gfx` (e `getBuffer()`), `flush()`, `txt`/`txtC`/`txtR`, `statusBar`, `hint`, `bar`, `showPopup`, `rgb()`, as cores `C_*`, `keys[]`/`Key`/`BtnEvt`/`EV_CLICK`/`EV_DOWN`/`isPress`, `prefs`, `wifiOk()`, `clockText()` e `timeValid()`. Se não quiser portá-los, não preciso desse arquivo: para o Retro eu escrevo o menu novo.
+
+Observações:
+- O Bichinho e o monitor de Internet dependem de Wi-Fi e de hora (NTP). O Retro pausa a rede (`netPause`) para liberar RAM, e no CYD seria igual.
+- Os recordes usam `Preferences`, que existe no ESP32 e funciona igual no CYD.
+- Os apps que tratam as teclas `KEY_A`, `KEY_B`, `KEY_OK`, `KEY_BACK` e as direções cabem no mesmo mapa de botões da seção 3.
