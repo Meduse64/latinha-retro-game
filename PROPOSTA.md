@@ -14,8 +14,8 @@ Consola portátil retro feita com o material da foto: ecrã ESP32 "CYD", comando
 | 2 | **8BitDo Zero 2** | Comando Bluetooth: D-pad, A/B/X/Y, Select, Start. Suportado pela biblioteca **Bluepad32** (Bluetooth BR/EDR, funciona só no ESP32 clássico, que é o do CYD). |
 | 3 | Altifalante pequeno com espuma | Liga ao conector do altifalante do CYD (JST 1,25 mm, 2 pinos). Confirmar o conector. |
 | 4 | **LiPo 3,7 V, 3000 mAh** (etiqueta; formato ~9,5×40×60 mm) | Alimentação. |
-| 5 | **Módulo TP4056 USB-C (HW-373)** com proteção da bateria (B+/B−, OUT+/OUT−) | Carrega a LiPo por USB-C e corta em subtensão/curto-circuito. |
-| 6 | Pequena placa com 2 condensadores "104" e pegada SOT-223, sem componentes | Parece um breakout de regulador por soldar. **A confirmar.** Se for para um AMS1117, não serve para esta bateria (ver secção 2). |
+| 5 | **Módulo TP4056 USB-C (HW-373 V1.2.1)** com proteção da bateria | Carrega a LiPo por USB-C (2 LEDs: carga / completo). Tem os dois circuitos integrados de proteção (DW01 + MOSFETs duplos 8205), por isso corta em subtensão, sobretensão e curto-circuito. Bateria em **B+/B−**, consumo em **OUT+/OUT−**. |
+| 6 | **Módulo regulador AMS1117 (3,3 V)**: entrada VIN+/GND, saída VOUT+/GND, LED de presença | Baixa 4,5–7 V para 3,3 V. **Não serve para ligar à LiPo** (ver secção 2), e o CYD já traz um AMS1117 igual na placa. |
 | 7 | Cabo JST 1,25 mm de 4 pinos + fios dupont | Para os conectores P3/CN1 do CYD (expansão). |
 
 ### Pinagem do CYD que interessa
@@ -51,11 +51,30 @@ USB-C ─► TP4056 (HW-373) ── B+/B− ──► LiPo
                                       └──► IO35 (P3)
 ```
 
-- **Boost 5 V**: um módulo MT3608 ou equivalente (é a única peça que falta; o breakout sem componentes só serve se for outro tipo de regulador).
+- **Boost 5 V**: um módulo MT3608 ou equivalente. **É a única peça de eletrónica que falta.** Regula o trimmer para **5,0 V com um multímetro antes de ligar ao CYD**: estes módulos costumam vir de fábrica com a saída ao máximo (~28 V) e queimam a placa.
 - **Interruptor deslizante** em série com OUT+.
 - **Divisor 2×100 kΩ → IO35**: dá a percentagem de bateria. O IO35 está no ADC1, que funciona com o Bluetooth ligado.
 - **Carregar e jogar ao mesmo tempo**: o TP4056 pode não detetar o fim de carga se houver consumo. Carregar com o interruptor desligado é mais seguro. Os 1 A típicos do HW-373 são aceitáveis para 3000 mAh (~0,33 C).
 - **Autonomia**: estimativa teórica de 6–10 h (ecrã e Bluetooth ligados). Medir na prática.
+
+### Porque é que o módulo AMS1117 que tens não resolve
+
+O AMS1117 precisa de a entrada estar ~1 V acima da saída. Com a LiPo a 3,7 V a saída cai para ~2,6 V, e com 4,2 V (cheia) fica em ~3,1 V, sempre abaixo dos 3,3 V. Só regula bem com 4,5 V ou mais à entrada, ou seja, **depois** do boost de 5 V. Mas aí o CYD já tem o seu próprio AMS1117 na placa e o módulo ficaria redundante. Guarda-o para outro projeto.
+
+**Teste rápido, sem comprar nada (só para a fase 0, não para uso final):** ligar a LiPo (via TP4056, OUT+/OUT−) diretamente ao VIN do CYD pode arrancar com a bateria cheia, mas a tensão interna cai para ~2,8 V e o ESP32 vai reiniciar ou perder o Bluetooth quando a bateria baixar. Não ligues os 4,2 V ao pino 3V3: excede o máximo do ESP32 (3,6 V).
+
+### Lista do que falta
+
+| Peça | Para quê |
+|------|----------|
+| Módulo boost MT3608 (ou equivalente) | 3,7 V → 5 V para o VIN do CYD |
+| Interruptor deslizante | Ligar/desligar em série com OUT+ |
+| 2 resistências de 100 kΩ | Divisor do medidor de bateria (IO35) |
+| Termorretrátil e fio fino | Isolar e ligar tudo |
+
+### Cuidados com a bateria
+
+Na primeira foto os fios da LiPo parecem ter as pontas descobertas. Isola cada fio antes de mexer e solda-os um de cada vez em B+ (vermelho) e B− (preto), sem nunca deixar as pontas a tocar uma na outra. Um curto-circuito numa LiPo de 3000 mAh pode causar fogo.
 
 ---
 
@@ -126,5 +145,5 @@ Depois do MVP: shoot'em up, puzzle estilo Tetris, ou um carregador de jogos a pa
 
 1. Onde estão os projetos precedentes (repositório, código, esquemas)?
 2. "Latinha" é uma lata/caixa de metal onde queres montar tudo, ou é só o nome?
-3. A placa pequena sem componentes: o que é (regulador, boost)? Tens um módulo boost 5 V à mão?
+3. Tens (ou compras) um módulo boost 5 V? Sem ele, só dá para o teste rápido da secção 2.
 4. Preferes Arduino/PlatformIO (mais rápido) ou ESP-IDF (mais controlo)?
