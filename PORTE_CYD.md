@@ -120,6 +120,23 @@ Os limites vêm só da largura de banda do SPI (40 MHz = cerca de 5 MB/s), sem c
 
 **Proposta:** um item "Tamanho" no menu de pausa: 1:1, ajustado (padrão) e tela cheia, com a escolha guardada por sistema. Padrão: Master System em ×1,25 (tela cheia sem distorção) e Game Boy e Game Gear em ×1,5. O que cabe de verdade só se descobre medindo no CYD.
 
+### 6.1 Com o CYD em pé (vertical, 240×320)
+
+Em pé, a tela fica 240 de largura por 320 de altura, como um Game Boy original. O Game Boy e o Game Gear são mais largos que altos (160×144), então a imagem enche a **largura**, mas não a altura:
+
+| Sistema | Escala | Tamanho na tela | Sobra | Dados por quadro |
+|---------|--------|-----------------|-------|------------------|
+| Game Boy e Game Gear | ×1,5 (240 ÷ 160) | **240×216** | faixa de 104 px embaixo | 104 KB |
+| Master System | ×0,9375 (240 ÷ 256, reduz 1 pixel a cada 16) | 240×180 | faixa de 140 px | 86 KB |
+
+- **Não é tela cheia:** o Game Gear ocupa toda a largura, mas só 216 dos 320 pixels de altura (cerca de 2/3).
+- A imagem **não fica maior** que no modo ×1,5 na horizontal (também 240×216). Na horizontal dá para chegar a 267×240 (×1,67), mas em pé o máximo sem distorcer é 240×216.
+- Em compensação o formato lembra o Game Boy, e a faixa de 104 px serve para mostrar bateria, o nome do jogo ou botões na tela. Como o firmware é nosso, dá para usar o toque nessa faixa para Start, Select e Menu, e liberar pinos do expansor.
+- O Master System é um console de tela larga: em pé fica menor que na horizontal (onde enche 320×240).
+- Girar a tela é só uma configuração do driver, não custa velocidade.
+
+**A escolha de em pé ou deitado define a caixa e a posição dos botões**, então vale decidir antes de projetá-la: em pé combina com Game Boy e Game Gear, deitado combina com Master System.
+
 ---
 
 ## 7. Plano
