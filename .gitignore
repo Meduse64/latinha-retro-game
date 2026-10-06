@@ -20,3 +20,4 @@ build/
 
 # codigo de terceiros com licenca propria (SMS Plus, Z80, MAME): so local, nunca no repositorio publico
 third_party/
+firmware/cydboy_fw/src/smsplus/
