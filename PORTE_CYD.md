@@ -3,7 +3,9 @@ O NES fica fora deste firmware por enquanto, para não juntar mais código de te
 
 Este documento parte do arquivo do app Retro do firmware anterior (LatinhaColor), que você colou na conversa. Eu só vi **esse arquivo**: não tenho o `gb_core.c`, o `src/smsplus`, o restante do firmware (tela, botões, menu) nem o script `gravar_jogos.ps1`. Tudo abaixo é leitura do código colado e **não foi compilado nem testado**.
 
-> **Decisão atual (opção B):** um firmware só, partindo do código do CYDboy para Game Boy e Game Boy Color (Walnut-CGB), com o SMS Plus do LatinhaColor acrescentado para Game Gear e Master System. O porte do app Retro inteiro, descrito nas secções 1 a 4, passa a servir sobretudo para o SMS Plus e para o mapa de botões. Veja a secção 5.1 e o plano na secção 7.
+> **Escopo (atualizado depois das medidas no CYD):** o console é de **Game Boy, Game Gear e Master System**. O Game Boy Color deixa de ser requisito: no CYD, sem PSRAM, os jogos de GBC em velocidade dupla (como o Space Invaders) rodam a uns 30 FPS, cerca de metade da velocidade real, e só um núcleo de emulador bem mais rápido resolveria isso. O Walnut-CGB continua no firmware e os jogos de GBC rodam como bônus, sem promessa de velocidade (`firmware/cydboy_fw/README.md`).
+>
+> **Decisão atual (opção B):** um firmware só, partindo do código do CYDboy (Game Boy, com o Walnut-CGB), com o SMS Plus do LatinhaColor acrescentado para Game Gear e Master System. O porte do app Retro inteiro, descrito nas secções 1 a 4, passa a servir sobretudo para o SMS Plus e para o mapa de botões. Veja a secção 5.1 e o plano na secção 7.
 
 ---
 
@@ -143,6 +145,8 @@ Para isso o plano é esconder da tela o D-pad, o A, o B, o Start e o Select quan
 
 Riscos, nesta ordem:
 
+**Medido num CYD (fork em `firmware/cydboy_fw/`):** o CYDboy original, com o Bluetooth, deixava só 116 KB de RAM, e o cache da ROM ficava com 61 páginas (30 KB). No Zelda isso dava cerca de 1 070 falhas de cache por segundo e 21 FPS. Sem o Bluetooth sobram uns 118 KB depois de alocar as 160 páginas do cache (80 KB), as falhas caem a perto de zero e, com o ritmo dos quadros corrigido, o Zelda roda a **54 FPS** em média, e os jogos de GBC de 1 MB ficam perto de 40 FPS antes da correção do ritmo. O limite agora é a CPU e o envio da imagem à tela (secção 5.1 e o `README.md` do fork). A RAM para o SMS Plus parece sobrar: 118 KB livres com o jogo de GBC rodando.
+
 1. **Memória com dois núcleos.** O GBC já usa bastante (2 bancos de VRAM de 16 KB e 8 de WRAM de 32 KB, segundo o README), e o SMS Plus soma o estado dele (cerca de 25 KB) mais o VDP. Os dois não podem ocupar RAM ao mesmo tempo: ou se aloca só o núcleo do jogo escolhido (e se libera ao sair), ou o lançador reinicia para o emulador escolhido, como na arquitetura da `PROPOSTA.md`. Só a medição no CYD diz qual cabe.
 2. **Velocidade.** O CYDboy diz mirar mais de 50 fps, com Bluetooth e toque. Sem medição minha. Tirar o Bluetooth deve ajudar.
 3. **Fork difícil de mexer.** Se o código do CYDboy for apertado demais para acrescentar um segundo núcleo, o plano cai na opção A: o CYDboy puro para GB e GBC, e um firmware menor só com o SMS Plus para GG e SMS. A troca passa a ser por regravação.
@@ -172,7 +176,9 @@ Os limites vêm só da largura de banda do SPI (40 MHz = cerca de 5 MB/s), sem c
 
 ### 6.1 Com o CYD em pé (vertical, 240×320)
 
-**Decisão: o console fica em pé.** Isso vale para o resto do plano: Game Boy e Game Gear em ×1,5 (240×216), Master System em 240×180, faixa livre embaixo da imagem (104 px no Game Boy e no Game Gear, 140 px no Master System), botões físicos na parte de baixo da caixa como no Game Boy original. A opção ×1,67 da tabela da secção 6 só vale para o CYD deitado e fica de fora. A "tela cheia" volta como um modo do menu de pausa, esticada para 240×320, junto com o Normal (1:1, bandas pretas dos lados) e o Ajustado (secção 6.2).
+> **Atualização: o console passa a ficar deitado (320×240).** O Master System (4:3) enche a tela deitada sem distorcer, e o Game Gear e o SMS são consoles deitados. Os jogos que não enchem a tela ficam **centralizados, com faixas pretas dos dois lados** (secção 6.3). A interface do CYDboy, desenhada em 240×320, precisa ser refeita para 320×240, e a tela de início, o Tempo e o Ônibus já nascem deitados. O texto abaixo, sobre ficar em pé, vale como histórico e como alternativa.
+
+**Decisão anterior: o console fica em pé.** Isso vale para o resto do plano: Game Boy e Game Gear em ×1,5 (240×216), Master System em 240×180, faixa livre embaixo da imagem (104 px no Game Boy e no Game Gear, 140 px no Master System), botões físicos na parte de baixo da caixa como no Game Boy original. A opção ×1,67 da tabela da secção 6 só vale para o CYD deitado e fica de fora. A "tela cheia" volta como um modo do menu de pausa, esticada para 240×320, junto com o Normal (1:1, bandas pretas dos lados) e o Ajustado (secção 6.2).
 
 Em pé, a tela fica 240 de largura por 320 de altura, como um Game Boy original. O Game Boy e o Game Gear são mais largos que altos (160×144), então a imagem enche a **largura**, mas não a altura:
 
@@ -202,6 +208,20 @@ O item **Tamanho** do menu de pausa tem três modos, com a escolha guardada por 
 - **Sem buffer grande:** como o CYDboy já faz no Ajustado (linha a linha, em `display_push_gb_line()`), os três modos podem repetir ou duplicar linhas e colunas enquanto enviam, sem um quadro inteiro na RAM. Os fatores novos (a altura de 144 para 320 repete as linhas em grupos de 2 e 3) são código novo.
 - **Menu:** na tela cheia não sobra barra de controles, e o menu abre tocando em qualquer lugar da tela (secção 5.1). O BOOT fica como alternativa.
 
+### 6.3 Deitado (320×240): os jogos centralizados, com faixas pretas
+
+As faixas são pretas e **não precisam ser redesenhadas a cada quadro**: só a área do jogo é enviada ao SPI. A 7,4 MB/s (medido), cada quadro desenhado custa uns 13 ms com 98 KB, uns 14 ms com 104 KB, uns 17 ms com 128 KB e uns 21 ms com 154 KB.
+
+| Modo | Game Boy e Game Gear (160×144) | Master System (256×192) |
+|------|-------------------------------|-------------------------|
+| **Normal** (1:1) | 160×144 no centro, faixas de 80 px dos lados e 48 px em cima e embaixo. 46 KB | **256×192 no centro, faixas de 32 px dos lados e 24 px em cima e embaixo. 98 KB** (padrão) |
+| **Ajustado** | **×1,5: 240×216, faixas de 40 px dos lados e 12 px em cima e embaixo. 104 KB** (padrão) | ×1,25 menos um pouco: 288×216, faixas de 16 px. 124 KB |
+| **Tela cheia** | ×1,67: 267×240, faixas de 26 px dos lados, **sem distorcer**. 128 KB. Esticado para 320×240 distorce uns 20%. 154 KB | **×1,25: 320×240 cheio, sem distorcer.** 154 KB |
+
+- As faixas dos lados também podem mostrar informação: bateria, nome do jogo e a hora.
+- O toque em qualquer lugar abre a pausa, como já decidido.
+- A rotação do painel é só o valor do `TFT_MADCTL` (secção 10 e `config_cyd.h`). O toque precisa de calibração nova.
+
 **A escolha de em pé ou deitado define a caixa e a posição dos botões**, então vale decidir antes de projetá-la: em pé combina com Game Boy e Game Gear, deitado combina com Master System.
 
 ---
@@ -212,7 +232,7 @@ O item **Tamanho** do menu de pausa tem três modos, com a escolha guardada por 
 |------|---------|---------------------|
 | 1 | Teste de hardware (`cyd/teste_cyd/`, já escrito) e o **CYDboy pronto** gravado no CYD | Tela, botões, SD e memória confirmados, e o CYDboy joga GB e GBC com o toque ou o Zero 2 |
 | 2 | **Fork do CYDboy** neste repositório: PCF8574 em IO22/IO27, menu de pausa por toque, com Tamanho, Paleta, Pular quadros e Som dentro dele (e os controles na tela escondidos), Bluetooth e Wi-Fi desligáveis (secção 5.1) | Compila no PlatformIO e joga um jogo de GB e um de GBC com os seus botões físicos. Memória livre medida |
-| 3 | **Game Boy e Game Boy Color com o Walnut-CGB**, que já vem no CYDboy: menu de pausa por toque, pastas e velocidade | GB e GBC jogáveis com cores certas e quadros por segundo medidos nos seus botões, nos três tamanhos do menu (Normal, Ajustado e Tela cheia; secção 6.2) |
+| 3 | **Game Boy e Game Boy Color com o Walnut-CGB**, que já vem no CYDboy: menu de pausa por toque, pastas e velocidade | GB jogável com os seus botões e quadros por segundo medidos (hoje 54 FPS no Zelda), nos três tamanhos do menu (Normal, Ajustado e Tela cheia; secção 6.2). GBC como bônus, sem meta de velocidade |
 | 4 | **Game Gear e Master System**: SMS Plus acrescentado ao fork (ponte do emulador, pastas `roms/gg` e `roms/sms`, cópia da ROM para a partição, tamanhos da secção 6) | Os dois rodam, e a memória livre foi medida com os dois núcleos no firmware |
 | 5 | Saves e fotos de GG e SMS em arquivos no cartão (GB e GBC já vêm prontos) | Save de bateria e foto de GG e SMS em `saves/` |
 | 6 | Extras | Som de GG e SMS no GPIO26 (ver o que o CYDboy já tem de áudio) e, se ainda interessar, os apps do LatinhaColor (secção 9) |
@@ -284,4 +304,30 @@ Consequências:
 
 ### Fase 1 já escrita: `cyd/teste_cyd/`
 
-Um sketch de teste de hardware (tela ×1,5 em pé, as 9 teclas, PCF8574 com detecção de endereço, ADKeyboard, cartão SD e memória). Instruções em `cyd/teste_cyd/LEIAME.md`. Também lê o toque (XPT2046, por software) e mostra uma cruz que segue o dedo. Já foi **compilado para o ESP32 e gravado num CYD** (arduino-cli, núcleo ESP32 3.3.11), e ligou: pela serial, o envio de um quadro de 240×192 levou **27,4 ms** (a conta teórica da secção 6 dava cerca de 18 ms) e sobraram **244 704 bytes** de RAM. O que aparece na tela, o toque, os botões e o cartão SD **ainda não foram conferidos**. A medida de 27,4 ms é com a biblioteca Adafruit, escrevendo linha a linha, e não vale necessariamente para o CYDboy (TFT_eSPI).
+Um sketch de teste de hardware (tela ×1,5 em pé, as 9 teclas, PCF8574 com detecção de endereço, ADKeyboard, cartão SD e memória). Instruções em `cyd/teste_cyd/LEIAME.md`. Também lê o toque (XPT2046, por software) e mostra uma cruz que segue o dedo. Já foi **compilado para o ESP32 e gravado num CYD** (arduino-cli, núcleo ESP32 3.3.11), e ligou: pela serial, o envio de um quadro de 240×192 levou **27,4 ms** (a conta teórica da secção 6 dava cerca de 18 ms) e sobraram **244 704 bytes** de RAM. Depois foram conferidos no CYD: a tela (com o `TFT_MADCTL` 0x20, que corrigiu a orientação e as cores), o toque, o PCF8574 em 0x20 (uma ligação errada do cabo foi achada pelo diagnóstico de I²C do próprio sketch) e o cartão SD. A medida de 27,4 ms é com a biblioteca Adafruit, escrevendo linha a linha, e não vale necessariamente para o CYDboy (TFT_eSPI).
+
+---
+
+## 11. Apps e controles (decisão atual)
+
+**Apps que vêm do LatinhaColor: só Retro, Tempo e Ônibus.** O Bicho, os Jogos, as Mensagens (Telegram) e o monitor de Net saem do plano. A tela de início tem três caixas lado a lado (Retro, Tempo e Ônibus), tudo deitado em 320×240.
+
+| Ação | Toque | Botões físicos |
+|------|-------|----------------|
+| Abrir um app ou um jogo | Toca no bloco ou na linha | D-pad escolhe, **A** abre |
+| Voltar uma tela | Toca no `‹` do canto de cima | **B** |
+| Ir ao início, fora dos jogos | Toca no título | **Start** |
+| Rolar uma lista (jogos, linhas de ônibus) | Setas ▲ ▼ na tela, ou toca na linha | D-pad |
+| Tempo: trocar de aba (Agora, Horas, 7 dias) | Toca na aba | ◀ ▶ |
+| Ônibus: ver as próximas saídas | Toca na linha | A |
+| Dentro de um jogo: abrir a pausa | Toque em **qualquer lugar** da tela | Start e Select juntos |
+
+O toque é resistivo e não é bom para arrastar o dedo, por isso as listas rolam por setas e não por deslize. Os alvos têm cerca de 40 px de altura. Dentro do jogo, Start e Select são botões do jogo, então o início só vale fora dele.
+
+**Menu de pausa, com 5 itens:** Continuar, Salvar foto, Carregar foto, Opções e Sair. Em Opções ficam o Tamanho (Normal, Ajustado, Cheia, Esticada), a Paleta, o Pular quadros e o Brilho. Os textos não têm acento, porque a fonte da tela não os tem.
+
+**O que o Tempo e o Ônibus precisam:**
+- **Hora certa:** Wi-Fi e NTP. O Ônibus usa só a hora, porque as tabelas de horário ficam no código. O Tempo busca a previsão do Rio no Open-Meteo, sem chave de acesso.
+- **Dados do Wi-Fi:** num `secrets.h` local, **fora do git**.
+- **Partição maior:** com o Wi-Fi e a conexão segura o programa passa de 1,3 MB, então o firmware vai para o esquema "No OTA" (2 MB para o programa, 2 MB para os dados). As ROMs de Game Gear e Master System, copiadas para a flash, são recopiadas do cartão na primeira vez.
+- **RAM:** a conexão segura pede uns 40 KB livres. Fora dos jogos sobram uns 215 KB, e durante um jogo de SMS uns 180 KB.

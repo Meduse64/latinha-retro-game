@@ -373,3 +373,15 @@ Os botões E, F e K ficam sobrando. Se quiser o menu de pausa num botão grande 
 - **Conector amarelo de dupla fileira: este serve.** A mesma fonte diz que ele dá acesso a todos os botões, aos potenciômetros do analógico, a 3,3 V, 5 V e GND. Pela legenda impressa na sua foto, a fileira de cima tem `V A C E K X` e a de baixo `G B D F 3 Y`. Leitura minha, a confirmar com o multímetro: V = 5 V, G = GND, 3 = 3,3 V, A a F = botões, K = apertar o analógico, X e Y = eixos.
 
 Ligação para o CYD: um fio do **GND (G)** do conector amarelo ao GND do CYD e do PCF8574, e um fio de cada botão (A, B, C, D) a uma entrada do PCF8574, conforme a tabela da seção 9. Não é preciso alimentar o shield: os botões só precisam ligar o pino ao GND.
+
+---
+
+## 10. Zero 2 por Bluetooth no CYDboy (testado)
+
+Resultado do teste no CYD, com o CYDboy gravado pelo gravador web:
+
+- O Zero 2 conectou nos modos **B** (D-input, aparece como "8BitDo") e **X** (X-input, aparece como "Xbox"). Em ambos, A, B, Start e Select funcionaram. O modo Y (Switch) não foi relatado.
+- O **D-pad não respondia**. Passou a funcionar depois de segurar **Esquerda + Select por 5 segundos**, com o controle ligado (o LED pisca em vermelho). Isso faz o D-pad valer como o **analógico esquerdo**, que o CYDboy lê: o `bt_controller.cpp` dele usa `axisX()` e `axisY()` com limite de ±220, além do `dpad()`. A combinação vem da [FAQ da 8BitDo](https://support.8bitdo.com/faq/zero2.html), e o mapeamento fica gravado no controle.
+- A combinação **Direita + Select** põe o D-pad no analógico direito, que o CYDboy **não** lê. **Cima + Select** volta o D-pad ao padrão, segundo [um relato](https://forums.ankiweb.net/t/d-pad-remapping-on-8bitdo-zero2-in-x-input-mode-is-ignored/40136), e eu não vi isso no manual da 8BitDo.
+- O menu do CYDboy abre com **Start + Select**, apertados juntos ou em até 0,8 s. O Zero 2 não tem L1 e R1.
+- O CYDboy reconecta sozinho se o controle for ligado antes do boot ou logo ao ligar (README dele).
