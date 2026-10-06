@@ -335,7 +335,7 @@ static void update_selected_marquee(RomEntry* r, int cnt, int pg, int sel, uint3
 int launcher_show(RomEntry* roms, int cnt) {
     int pg = 0, sel = 0;
     tft.fillScreen(COLOR_SCREEN_BG);
-    draw_header("CYDboy");
+    draw_header("< Retro");
 
     draw_list(roms, cnt, pg, sel);
     uint16_t prev = 0;
@@ -378,6 +378,9 @@ int launcher_show(RomEntry* roms, int cnt) {
         if (touch_is_pressed()) {
             int16_t tx = touch_get_x(), ty = touch_get_y();
 
+            // O titulo do cabecalho volta a tela de inicio
+            if (ty < 36 && tx < 160) { wait_release(); return LAUNCHER_SEL_HOME; }
+
             // Card list touches
             if (ty >= ITEM_Y0 && ty < ITEM_Y0 + ITEMS_PP * ITEM_H) {
                 int idx = pg * ITEMS_PP + (ty - ITEM_Y0) / ITEM_H;
@@ -398,7 +401,7 @@ int launcher_show(RomEntry* roms, int cnt) {
                     return LAUNCHER_SEL_SETTINGS;
                 } else if (tx > SCREEN_W - 72) {
                     touch_run_calibration();
-                    draw_header("CYDboy");
+                    draw_header("< Retro");
                     draw_list(roms, cnt, pg, sel);
                     delay(250);
                 } else if (tx >= 72 && tx < SCREEN_W / 2 && pg > 0) {
@@ -414,6 +417,9 @@ int launcher_show(RomEntry* roms, int cnt) {
                 }
             }
         }
+
+        // B volta a tela de inicio
+        if ((b & GB_BTN_B) && !(prev & GB_BTN_B)) { wait_release(); return LAUNCHER_SEL_HOME; }
 
         // Select + Start combo opens settings
         if (((b & (GB_BTN_START | GB_BTN_SELECT)) == (GB_BTN_START | GB_BTN_SELECT)) || (b & GB_BTN_MENU)) {

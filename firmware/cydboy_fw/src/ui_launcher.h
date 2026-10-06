@@ -5,6 +5,7 @@
 #define LAUNCHER_SEL_USB_MANAGER  (-3)
 #define LAUNCHER_SEL_WIFI_UPLOAD  (-4)
 #define LAUNCHER_SEL_SETTINGS     (-5)
+#define LAUNCHER_SEL_HOME         (-6)   // B ou toque no titulo: volta a tela de inicio
 
 int launcher_show(RomEntry* roms, int count);
 int launcher_ingame_menu();   // 0=resume 1=save 2=load 3=quit 4=calibrate 5=settings

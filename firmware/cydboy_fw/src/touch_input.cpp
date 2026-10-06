@@ -225,9 +225,9 @@ void touch_run_calibration() {
     tft.fillScreen(TFT_BLACK);
     tft.setTextDatum(MC_DATUM);
     tft.setTextColor(0xFFE0);
-    tft.drawString("CALIBRATION", SCREEN_W/2, 16, 4);
+    tft.drawString("CALIBRACAO", SCREEN_W/2, 16, 4);
     tft.setTextColor(0xAD55);
-    tft.drawString("Touch each + carefully", SCREEN_W/2, 46, 2);
+    tft.drawString("Toque em cada + com cuidado", SCREEN_W/2, 46, 2);
 
     // 5 calibration points: 4 corners + center (240x320 portrait)
     struct { int16_t sx, sy; } targets[5] = {
@@ -237,7 +237,7 @@ void touch_run_calibration() {
         {30, 45}, {210, 45}, {30, 275}, {210, 275}, {120, 160}
 #endif
     };
-    const char* labels[5] = {"Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right", "Center"};
+    const char* labels[5] = {"Canto sup. esquerdo", "Canto sup. direito", "Canto inf. esquerdo", "Canto inf. direito", "Centro"};
     int16_t raw_x[5], raw_y[5];
 
     for (int i = 0; i < 5; i++) {
@@ -389,11 +389,11 @@ void touch_run_calibration() {
         tft.fillScreen(TFT_BLACK);
         tft.setTextColor(0x07E0);
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("VERIFY", SCREEN_W/2, 13, 4);
+        tft.drawString("TESTE", SCREEN_W/2, 13, 4);
         tft.setTextColor(0xAD55);
-        tft.drawString("Draw to test accuracy", SCREEN_W/2, 46, 2);
+        tft.drawString("Desenhe para testar", SCREEN_W/2, 46, 2);
         tft.setTextColor(0x7BEF);
-        tft.drawString("Wait 5s or lift to exit", SCREEN_W/2, SCREEN_H - 16, 1);
+        tft.drawString("Solte por 2 s para sair", SCREEN_W/2, SCREEN_H - 16, 1);
 
         // Draw reference grid (scaled steps)
         for (int x = 0; x <= SCREEN_W; x += 48) tft.drawFastVLine(x, 66, SCREEN_H - 92, 0x18C3);
@@ -428,7 +428,7 @@ void touch_run_calibration() {
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(0x07E0);
     tft.setTextDatum(MC_DATUM);
-    tft.drawString("Calibration Saved!", SCREEN_W/2, SCREEN_H / 2, 4);
+    tft.drawString("Calibracao salva!", SCREEN_W/2, SCREEN_H / 2, 4);
     delay(1200);
     return;
 
@@ -436,8 +436,8 @@ cal_fail:
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_RED);
     tft.setTextDatum(MC_DATUM);
-    tft.drawString("Calibration Failed!", SCREEN_W/2, SCREEN_H / 2 - 13, 4);
+    tft.drawString("Calibracao falhou!", SCREEN_W/2, SCREEN_H / 2 - 13, 4);
     tft.setTextColor(0x7BEF);
-    tft.drawString("Using previous values", SCREEN_W/2, SCREEN_H / 2 + 26, 2);
+    tft.drawString("Mantendo os valores antigos", SCREEN_W/2, SCREEN_H / 2 + 26, 2);
     delay(2000);
 }

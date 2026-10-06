@@ -8,6 +8,11 @@
 #include "emulator_bridge.h"
 #include "bt_controller.h"
 #include "serial_manager.h"
+#include "ui_home.h"
+#include "app_tempo.h"
+#include "app_onibus.h"
+#include "app_agenda.h"
+#include "net.h"
 #include "audio_output.h"
 #include "bgm_player.h"
 #include "cydboy_logo.h"
@@ -198,7 +203,14 @@ void setup() {
 }
 
 // ─── Loop ───────────────────────────────────────────────────────────────────
+static int s_app = -1;   // -1 = tela de inicio; senao HOME_RETRO, HOME_TEMPO...
+
 void loop() {
+    if (s_app < 0) { net_off(); s_app = home_show(); }
+    if (s_app == HOME_TEMPO)  { app_tempo_run();  s_app = -1; return; }
+    if (s_app == HOME_ONIBUS) { app_onibus_run(); s_app = -1; return; }
+    if (s_app == HOME_AGENDA) { app_agenda_run(); s_app = -1; return; }
+    net_off();   // nos jogos o Wi-Fi fica desligado
     if (!roms) roms = (RomEntry*)malloc(sizeof(RomEntry) * MAX_ROMS);
     if (!roms) {
         Serial.println("[MAIN] Failed to alloc roms list");
@@ -209,6 +221,11 @@ void loop() {
     bgm_start();
     int sel = launcher_show(roms, rcnt);
     bgm_stop();
+    if (sel == LAUNCHER_SEL_HOME) {
+        if (roms) { free(roms); roms = nullptr; }
+        s_app = -1;
+        return;
+    }
     if (sel == LAUNCHER_SEL_BT_SCANNER) {
         if (roms) { free(roms); roms = nullptr; }
         run_bt_scanner();
