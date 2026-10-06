@@ -5,6 +5,8 @@
 //  para 240 x 192 com o CYD em pe (240 x 320):
 //    - faixas de cor e tres quadrados R G B (confira se as cores estao certas)
 //    - as 9 teclas do LatinhaColor acendendo quando apertadas
+//    - o toque na tela (XPT2046): posicao, valores brutos e uma cruz amarela que segue o dedo;
+//      um toque em qualquer lugar acende a tecla MENU
 //    - o byte lido do PCF8574 e a tensao do ADKeyboard (IO35)
 //    - cartao SD (tamanho e quantos jogos em /roms/gb, gbc, gg, sms)
 //    - memoria livre e tempo de envio de cada quadro a tela
@@ -19,6 +21,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_ILI9341.h>
 #include "config_cyd.h"
+#include "teclas.h"
 
 // ---------- Cores (RGB565), as mesmas do LatinhaColor ----------
 constexpr uint16_t rgb(uint8_t r, uint8_t g, uint8_t b) { return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3); }
@@ -61,11 +64,8 @@ void flush() {
 }
 
 // ---------- Teclas ----------
-enum Key : uint8_t { KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_OK, KEY_BACK, KEY_A, KEY_B, KEY_HOME, KEY_COUNT };
-enum BtnEvt : uint8_t { EV_NONE, EV_DOWN, EV_CLICK, EV_LONG, EV_REPEAT };
 const char* const KEYNAME[KEY_COUNT] = { "CIMA", "BAIXO", "ESQ", "DIR", "OK", "VOLTAR", "A", "B", "MENU" };
 
-struct KeyState { bool down, longFired; uint32_t downAt, lastRep, lastChange; };
 KeyState keys[KEY_COUNT];
 uint16_t clicks[KEY_COUNT];
 
@@ -76,7 +76,17 @@ const Key PCF_MAP[8] = { KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_OK, KEY_BACK
 bool pcfOk = false;
 uint8_t pcfAddr = PCF_ADDR;            // endereco achado na inicializacao (ver pcfInit)
 uint8_t pcfRaw = 0xFF;
+String i2cInfo = "sem varredura";      // resultado da varredura do I2C, repetido no Monitor Serial
+char i2cShort[40] = "";                // o que esta em SDA e SCL, mostrado na tela
+bool i2cSwapped = false;               // achou o modulo com SDA e SCL invertidos
 int adMv = 0, adSw = 0;
+
+// Toque (XPT2046, lido por software; as funcoes ficam mais abaixo)
+KeyState touchKey;
+bool touchDown = false;                // dedo na tela, ja com debounce
+int touchX = 0, touchY = 0;            // posicao na tela: 0 a 239 e 0 a 319
+int touchRawX = 0, touchRawY = 0;
+uint16_t touchClicks = 0;
 
 void readRaw(bool raw[KEY_COUNT]) {
   for (int i = 0; i < KEY_COUNT; i++) raw[i] = false;
@@ -97,7 +107,10 @@ void readRaw(bool raw[KEY_COUNT]) {
   if (adSw == 5) raw[KEY_HOME] = true;     // amarelo
 #endif
 #if USE_BOOT_AS_HOME
-  if (digitalRead(BOOT_PIN) == LOW) raw[KEY_HOME] = true;
+  if (digitalRead(CYD_BOOT_PIN) == LOW) raw[KEY_HOME] = true;
+#endif
+#if USE_TOUCH && USE_TOUCH_AS_HOME
+  if (touchDown) raw[KEY_HOME] = true;
 #endif
 }
 
@@ -117,6 +130,61 @@ BtnEvt pollKey(KeyState& b, bool raw) {   // o mesmo do LatinhaColor
   return EV_NONE;
 }
 
+#if USE_TOUCH
+// Le um canal de 12 bits do XPT2046 (0xD0 = X bruto, 0x90 = Y bruto), com SPI feito a mao.
+uint16_t xptRead(uint8_t cmd) {
+  digitalWrite(TOUCH_CS, LOW);
+  for (int i = 7; i >= 0; i--) {           // byte de comando, bit mais alto primeiro
+    digitalWrite(TOUCH_MOSI, (cmd >> i) & 1);
+    digitalWrite(TOUCH_CLK, HIGH);
+    delayMicroseconds(1);
+    digitalWrite(TOUCH_CLK, LOW);
+    delayMicroseconds(1);
+  }
+  uint16_t v = 0;
+  for (int i = 0; i < 16; i++) {           // 1 bit vazio, 12 de dado e 3 de sobra
+    digitalWrite(TOUCH_CLK, HIGH);
+    delayMicroseconds(1);
+    v = (v << 1) | digitalRead(TOUCH_MISO);
+    digitalWrite(TOUCH_CLK, LOW);
+    delayMicroseconds(1);
+  }
+  digitalWrite(TOUCH_CS, HIGH);
+  return (v >> 3) & 0x0FFF;
+}
+
+void touchPoll() {
+  bool pressed = false;
+  if (digitalRead(TOUCH_IRQ) == LOW) {     // o chip puxa o IRQ para baixo enquanto ha um dedo
+    xptRead(0xD0);                         // primeira leitura descartada
+    uint32_t sx = 0, sy = 0;
+    for (int i = 0; i < 4; i++) { sx += xptRead(0xD0); sy += xptRead(0x90); }
+    int rx = sx / 4, ry = sy / 4;
+    if (rx > 100 && rx < 4000 && ry > 100 && ry < 4000) {   // fora disso e ruido
+      pressed = true;
+      touchRawX = rx;
+      touchRawY = ry;
+      long px, py;
+      if (TOUCH_SWAP_XY) {
+        px = map(ry, TOUCH_RAWY_MIN, TOUCH_RAWY_MAX, 0, 239);
+        py = map(rx, TOUCH_RAWX_MIN, TOUCH_RAWX_MAX, 0, 319);
+      } else {
+        px = map(rx, TOUCH_RAWX_MIN, TOUCH_RAWX_MAX, 0, 239);
+        py = map(ry, TOUCH_RAWY_MIN, TOUCH_RAWY_MAX, 0, 319);
+      }
+      px = constrain(px, 0, 239);
+      py = constrain(py, 0, 319);
+      touchX = TOUCH_INV_X ? 239 - px : px;
+      touchY = TOUCH_INV_Y ? 319 - py : py;
+    }
+  }
+  BtnEvt ev = pollKey(touchKey, pressed);
+  touchDown = touchKey.down;
+  if (ev == EV_DOWN) Serial.printf("toque raw %d,%d -> tela %d,%d\n", touchRawX, touchRawY, touchX, touchY);
+  if (ev == EV_CLICK) touchClicks++;
+}
+#endif
+
 // ---------- Texto (o mesmo do LatinhaColor) ----------
 int textW(const char* s, uint8_t sz = 1) { return strlen(s) * 6 * sz; }
 void txt(int x, int y, const char* s, uint16_t c = C_FG, uint8_t sz = 1) {
@@ -131,14 +199,73 @@ bool pcfTry(uint8_t a) {
   Wire.write(0xFF);                        // todos os pinos como entrada (nivel alto)
   return Wire.endTransmission() == 0;
 }
-void pcfInit() {
-  Wire.begin(I2C_SDA, I2C_SCL);
-  if (pcfTry(PCF_ADDR)) { pcfOk = true; pcfAddr = PCF_ADDR; return; }
+// Diz o que esta ligado a um fio, ligando um pull-down e um pull-up internos (cerca de 45 kohm cada).
+const char* lineState(int pin) {
+  pinMode(pin, INPUT_PULLDOWN); delay(3); int d = digitalRead(pin);
+  pinMode(pin, INPUT_PULLUP);   delay(3); int u = digitalRead(pin);
+  pinMode(pin, INPUT);
+  if (d == 0 && u == 1) return "solto";          // nada o segura: sem fio, ou modulo sem energia
+  if (d == 0 && u == 0) return "GND";            // preso no GND: fio em curto ou ligado ao pino errado
+  if (d == 1 && u == 1) return "alto";           // pull-up externo (modulo alimentado) ou 3V3
+  return "?";
+}
+
+bool pcfProbe(uint8_t a) {
+  Wire.beginTransmission(a);
+  return Wire.endTransmission() == 0;
+}
+
+// Procura o PCF8574 nos enderecos 0x20 a 0x27 e 0x38 a 0x3F. Tenta primeiro o da configuracao.
+bool pcfFind() {
+  if (pcfTry(PCF_ADDR)) { pcfOk = true; pcfAddr = PCF_ADDR; return true; }
   for (uint8_t a = 0x20; a <= 0x3F; a++) {
     if (a == PCF_ADDR || (a > 0x27 && a < 0x38)) continue;
-    if (pcfTry(a)) { pcfOk = true; pcfAddr = a; return; }
+    if (pcfTry(a)) { pcfOk = true; pcfAddr = a; return true; }
   }
+  return false;
 }
+
+// Diagnostico do I2C, para achar erro de ligacao sem regravar: diz o que esta em cada fio e, se os dois
+// estiverem altos, procura o PCF8574, tambem com SDA e SCL trocados. Roda no boot e, enquanto o
+// PCF8574 nao for achado, a cada 0,5 s (os fios podem ser mudados com o sketch rodando).
+void i2cDiagnose(bool full) {
+  Wire.end();
+  const char* s = lineState(I2C_SDA);
+  const char* c = lineState(I2C_SCL);
+  snprintf(i2cShort, sizeof(i2cShort), "I2C SDA:%s SCL:%s", s, c);
+  String info = String("SDA(IO") + I2C_SDA + ")=" + s + " SCL(IO" + I2C_SCL + ")=" + c;
+  i2cSwapped = false;
+  if (!strcmp(s, "alto") && !strcmp(c, "alto")) {
+    Wire.begin(I2C_SDA, I2C_SCL);
+    Wire.setTimeOut(5);
+    int n = 0;
+    info += " achados:";
+    for (uint8_t a = full ? 1 : 0x20; a < (full ? 127 : 0x40); a++) {
+      if ((!full && a > 0x27 && a < 0x38) || !pcfProbe(a)) continue;
+      char t[8]; snprintf(t, sizeof(t), " 0x%02X", a); info += t; n++;
+    }
+    if (n == 0) {                          // nada: tenta com os dois fios trocados
+      Wire.end();
+      Wire.begin(I2C_SCL, I2C_SDA);
+      Wire.setTimeOut(5);
+      for (uint8_t a = 0x20; a < 0x40; a++) {
+        if ((a > 0x27 && a < 0x38) || !pcfProbe(a)) continue;
+        i2cSwapped = true;
+        char t[40]; snprintf(t, sizeof(t), " | com SDA e SCL TROCADOS: 0x%02X", a); info += t;
+        break;
+      }
+      if (!i2cSwapped) info += " nenhum";
+      Wire.end();
+      Wire.begin(I2C_SDA, I2C_SCL);
+    }
+    pcfFind();
+  } else {
+    info += " (nao varre: os dois fios precisam estar altos)";
+  }
+  if (!i2cInfo.equals(info)) { i2cInfo = info; Serial.println(info); }   // so imprime quando muda
+}
+
+void pcfInit() { i2cDiagnose(true); }
 #endif
 
 // ---------- Cartao SD ----------
@@ -194,7 +321,7 @@ void drawTest() {
   int y = 66;
 #if USE_PCF8574
   if (pcfOk) snprintf(b, sizeof(b), "PCF8574 0x%02X: 0x%02X", pcfAddr, pcfRaw);
-  else snprintf(b, sizeof(b), "PCF8574: nao achado");
+  else snprintf(b, sizeof(b), "%s", i2cSwapped ? "SDA e SCL TROCADOS" : "PCF8574: nao achado");
   txt(2, y, b, pcfOk ? C_GREEN : C_RED);
 #else
   txt(2, y, "PCF8574 desligado", C_GRAY);
@@ -204,7 +331,7 @@ void drawTest() {
   snprintf(b, sizeof(b), "ADK IO35: %d mV  SW%d", adMv, adSw);
   txt(2, y, b, C_CYAN);
 #else
-  txt(2, y, "ADKeyboard desligado", C_GRAY);
+  txt(2, y, (USE_PCF8574 && !pcfOk) ? i2cShort : "ADKeyboard desligado", (USE_PCF8574 && !pcfOk) ? C_AMBER : C_GRAY);
 #endif
   y += 10;
   if (sdOk) {
@@ -225,6 +352,19 @@ void drawTest() {
   y += 10;
   snprintf(b, sizeof(b), "livre %lu KB", (unsigned long)(ESP.getFreeHeap() / 1024));
   txt(2, y, b, C_FG);
+  y += 10;
+#if USE_TOUCH
+  if (touchDown) snprintf(b, sizeof(b), "Toque %d,%d (%d,%d)", touchX, touchY, touchRawX, touchRawY);
+  else snprintf(b, sizeof(b), "Toque a tela (%u)", touchClicks);
+  txt(2, y, b, touchDown ? C_YELLOW : C_GRAY);
+  if (touchDown && touchY < OUT_H) {       // cruz na parte de cima (a de baixo e desenhada em updateBandCross)
+    int cx = touchX * SW / 240, cy = touchY * SH / OUT_H;
+    gfx.drawFastHLine(cx - 6, cy, 13, C_YELLOW);
+    gfx.drawFastVLine(cx, cy - 6, 13, C_YELLOW);
+  }
+#else
+  txt(2, y, "Toque desligado", C_GRAY);
+#endif
 }
 
 void drawBand() {                          // faixa de baixo, em resolucao nativa (240 x 128)
@@ -242,25 +382,58 @@ void drawBand() {                          // faixa de baixo, em resolucao nativ
   tft.setCursor(10, OUT_H + 84); tft.print("Os quadrados devem ser vermelho,");
   tft.setCursor(10, OUT_H + 96); tft.print("verde e azul. Se nao forem,");
   tft.setCursor(10, OUT_H + 108); tft.print("mude TFT_INVERT em config_cyd.h");
+#if USE_TOUCH
+  tft.setTextColor(ILI9341_YELLOW);
+  tft.setCursor(10, OUT_H + 120); tft.print("Toque aqui: cruz amarela");
+#endif
 }
+
+#if USE_TOUCH
+int crossX = -1, crossY = -1;              // cruz desenhada na faixa de baixo (-1 = nenhuma)
+void updateBandCross() {
+  int nx = -1, ny = -1;
+  if (touchDown && touchY >= OUT_H) { nx = touchX; ny = touchY; }
+  if (nx == crossX && ny == crossY) return;
+  if (crossX >= 0) drawBand();             // apaga a cruz anterior redesenhando a faixa
+  crossX = nx;
+  crossY = ny;
+  if (nx >= 0) {
+    tft.drawFastHLine(nx - 8, ny, 17, ILI9341_YELLOW);
+    tft.drawFastVLine(nx, ny - 8, 17, ILI9341_YELLOW);
+  }
+}
+#endif
 
 // ---------- Setup / loop ----------
 void setup() {
   Serial.begin(115200);
   pinMode(TFT_BL, OUTPUT);
   digitalWrite(TFT_BL, HIGH);
-  pinMode(BOOT_PIN, INPUT_PULLUP);
+  pinMode(CYD_BOOT_PIN, INPUT_PULLUP);
 
   gfxCanvas = new GFXcanvas16(SW, SH);
   gfx.setTextWrap(false);
 
   tftSpi.begin(TFT_SCK, TFT_MISO, TFT_MOSI, TFT_CS);
   tft.begin(TFT_HZ);
-  tft.setRotation(0);                      // em pe: 240 x 320
+  tft.setRotation(0);                      // em pe: a biblioteca passa a tratar a tela como 240 x 320
+  {                                        // mas o painel do CYD aparece de lado com o MADCTL da biblioteca
+    uint8_t madctl = TFT_MADCTL;           // (e com vermelho e azul trocados): usamos o nosso, ver config_cyd.h
+    tft.sendCommand(ILI9341_MADCTL, &madctl, 1);
+  }
   tft.invertDisplay(TFT_INVERT);
   tft.fillScreen(ILI9341_BLACK);
   drawBand();
 
+#if USE_TOUCH
+  pinMode(TOUCH_CS, OUTPUT);
+  digitalWrite(TOUCH_CS, HIGH);
+  pinMode(TOUCH_CLK, OUTPUT);
+  digitalWrite(TOUCH_CLK, LOW);
+  pinMode(TOUCH_MOSI, OUTPUT);
+  pinMode(TOUCH_MISO, INPUT);
+  pinMode(TOUCH_IRQ, INPUT);
+#endif
 #if USE_PCF8574
   pcfInit();
 #endif
@@ -274,6 +447,13 @@ void loop() {
   static uint32_t lastDraw = 0, lastLog = 0;
   uint32_t ms = millis();
 
+#if USE_TOUCH
+  touchPoll();
+#endif
+#if USE_PCF8574
+  static uint32_t lastI2c = 0;
+  if (!pcfOk && ms - lastI2c >= 500) { lastI2c = ms; i2cDiagnose(false); }   // refaz o diagnostico ate achar
+#endif
   bool raw[KEY_COUNT];
   readRaw(raw);
   for (int i = 0; i < KEY_COUNT; i++) {
@@ -288,10 +468,14 @@ void loop() {
     uint32_t t0 = micros();
     flush();
     flushUs = micros() - t0;
+#if USE_TOUCH
+    updateBandCross();
+#endif
   }
   if (ms - lastLog >= 2000) {
     lastLog = ms;
-    Serial.printf("pcf=0x%02X adk=%dmV envio=%luus livre=%u\n", pcfRaw, adMv, (unsigned long)flushUs, ESP.getFreeHeap());
+    Serial.printf("pcf=0x%02X adk=%dmV envio=%luus livre=%u | I2C %s\n", pcfRaw, adMv, (unsigned long)flushUs, ESP.getFreeHeap(),
+                  i2cInfo.c_str());
   }
   delay(1);
 }

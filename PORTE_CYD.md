@@ -284,4 +284,4 @@ Consequências:
 
 ### Fase 1 já escrita: `cyd/teste_cyd/`
 
-Um sketch de teste de hardware (tela ×1,5 em pé, as 9 teclas, PCF8574 com detecção de endereço, ADKeyboard, cartão SD e memória). Instruções em `cyd/teste_cyd/LEIAME.md`. Foi verificado só no computador, com cabeçalhos simulados, e as assinaturas da biblioteca Adafruit foram conferidas contra os cabeçalhos reais. **Nunca foi compilado nem rodado no ESP32.**
+Um sketch de teste de hardware (tela ×1,5 em pé, as 9 teclas, PCF8574 com detecção de endereço, ADKeyboard, cartão SD e memória). Instruções em `cyd/teste_cyd/LEIAME.md`. Também lê o toque (XPT2046, por software) e mostra uma cruz que segue o dedo. Já foi **compilado para o ESP32 e gravado num CYD** (arduino-cli, núcleo ESP32 3.3.11), e ligou: pela serial, o envio de um quadro de 240×192 levou **27,4 ms** (a conta teórica da secção 6 dava cerca de 18 ms) e sobraram **244 704 bytes** de RAM. O que aparece na tela, o toque, os botões e o cartão SD **ainda não foram conferidos**. A medida de 27,4 ms é com a biblioteca Adafruit, escrevendo linha a linha, e não vale necessariamente para o CYDboy (TFT_eSPI).
