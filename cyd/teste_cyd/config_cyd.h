@@ -16,9 +16,10 @@
 #define TFT_HZ    40000000UL   // se aparecer ruido na imagem, baixe para 27000000UL
 #define TFT_INVERT false       // se as cores aparecerem invertidas, troque para true
 // MADCTL do ILI9341 (orientacao e ordem das cores). Com o valor da biblioteca (0x48) este CYD mostrou a
-// imagem de lado e com vermelho e azul trocados. 0x20 e 0xE0 sao os dois valores "em pe" provaveis, e
-// diferem em 180 graus (conector USB em cima ou embaixo). O bit 0x08 liga a ordem BGR (cores trocadas).
-// Se a imagem sair espelhada ou de lado, experimente 0x60, 0xA0, 0x00, 0x40, 0x80 ou 0xC0.
+// imagem de lado e com vermelho e azul trocados. O 0x20 FOI CONFERIDO NESTE CYD (foto): imagem em pe, sem
+// espelho, com o conector USB em cima e as cores certas. O 0xE0 deve dar o mesmo girado 180 graus (USB em
+// baixo). O bit 0x08 liga a ordem BGR (cores trocadas). Se outro CYD sair espelhado ou de lado, experimente
+// 0x60, 0xA0, 0x00, 0x40, 0x80 ou 0xC0.
 #define TFT_MADCTL 0x20
 
 // ---------- Cartao microSD (fixo na placa) ----------
