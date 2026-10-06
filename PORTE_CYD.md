@@ -256,6 +256,7 @@ O repositório é público, e os arquivos que você enviou têm licenças difere
 | **SMS Plus** (Charles Mac Donald), por exemplo `system.c` | GPL v2 "ou qualquer versão posterior". |
 | **Z80** (`z80.c`, Juergen Buchmueller) | "Freeware para fins **não comerciais**". Pede crédito ao autor, um aviso em cada arquivo modificado e contato para uso comercial, e reserva o direito de mudar os termos a qualquer momento, inclusive retroativamente. **Isso não é GPL.** |
 | `cpuintrf.h` e `osd_cpu.h` | Vêm do MAME, que antes tinha uma licença parecida (não comercial). Esses dois arquivos não têm cabeçalho de licença no que você enviou. |
+| **`cyd_collide.c`** (nosso) | Reescrita de `render_obj()` do SMS Plus para calcular a colisão entre sprites nos quadros pulados. Por ser derivado do SMS Plus, **fica sob GPL v2 ou posterior**, e o cabeçalho do arquivo diz isso. É o único arquivo derivado do SMS Plus que está no repositório (em `firmware/cydboy_fw/smsplus_extra/`, fora de `src/`); o script o copia para a pasta do SMS Plus. |
 
 Consequências:
 
@@ -323,7 +324,7 @@ Um sketch de teste de hardware (tela ×1,5 em pé, as 9 teclas, PCF8574 com dete
 
 **Protetor de tela e sono:** depois de 5 min sem usar (nos menus e apps, nunca nos jogos) aparecem uns olhos animados; aos 10 min a placa entra em deep sleep e **acorda com um toque na tela** (o pino de interrupção do toque, IO36). Tocar em "Latinha" na tela inicial liga os olhos na hora e eles ficam até alguém tocar, sem dormir.
 
-**Game Gear e Master System com "Pular quadros":** o VDP só marca a colisão entre sprites (bit 0x20 do status, que o Fantasy Zone usa para acertar os tiros) quando a linha é desenhada. Com quadros pulados a flag nunca subia e o tiro atravessava o inimigo. Desenhar todos os quadros resolvia, mas custava metade da velocidade (33 FPS), então os quadros pulados agora só fazem a conta da colisão (`render_obj_collide`, em `smsplus/cyd_collide.c`), sem desenhar. Medido no Fantasy Zone: 50 a 61 FPS, e os tiros acertam.
+**Game Gear e Master System com "Pular quadros":** o VDP só marca a colisão entre sprites (bit 0x20 do status, que o Fantasy Zone usa para acertar os tiros) quando a linha é desenhada. Com quadros pulados a flag nunca subia e o tiro atravessava o inimigo. Desenhar todos os quadros resolvia, mas custava metade da velocidade (33 FPS), então os quadros pulados agora só fazem a conta da colisão (`render_obj_collide`, em `firmware/cydboy_fw/smsplus_extra/cyd_collide.c`, que o script `copiar_smsplus.ps1` copia para `src/smsplus/`), sem desenhar. Medido no Fantasy Zone: 50 a 61 FPS, e os tiros acertam.
 
 **Enviar jogos pelo Wi-Fi:** o botão **ENVIAR** da lista do Retro (e a linha "Enviar jogos pelo Wi-Fi" nas Opções) liga o Wi-Fi e mostra um endereço (`http://192.168.x.x`). No navegador do PC ou do celular, na mesma rede, a página deixa escolher as ROMs (`.gb`, `.gbc`, `.gg`, `.sms`); cada uma vai para a pasta certa do cartão SD (`/roms/gb`, `/roms/gbc`, `/roms/gg`, `/roms/sms`). A página também lista e apaga jogos. **Não tem senha:** só use na rede de casa. A calibração do toque fica na tela inicial (SELECT, ou toque no rodapé).
 

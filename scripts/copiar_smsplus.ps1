@@ -2,8 +2,8 @@
 # Os arquivos ficam em firmware\cydboy_fw\src\smsplus, que o git ignora: o Z80 tem licenca
 # "so uso nao comercial" e o SMS Plus e GPL v2, entao eles nao vao para o repositorio publico.
 # Sem essa pasta o firmware compila normalmente, so sem Game Gear e Master System (HAS_SMS = 0).
-# O arquivo cyd_collide.c (colisao entre sprites nos quadros pulados) tambem mora nessa pasta: o script so
-# copia por cima, nao apaga nada, entao ele continua la.
+# Depois de copiar, o script junta o cyd_collide.c (colisao entre sprites nos quadros pulados), que e nosso
+# e fica versionado em firmware\cydboy_fw\smsplus_extra (GPL v2+, por ser derivado do SMS Plus).
 param([string]$Latinha = "$HOME\OneDrive\Documents\arduino\00-Projects\LatinhaColor")
 
 $origem  = Join-Path $Latinha 'src\smsplus'
@@ -15,6 +15,13 @@ New-Item -ItemType Directory -Force $destino | Out-Null
 Copy-Item (Join-Path $origem '*') $destino -Recurse -Force
 $n = (Get-ChildItem $destino -File | Measure-Object).Count
 Write-Host "$n arquivos copiados para $destino"
+
+# Arquivos nossos que vao junto com o SMS Plus (vivem no repositorio, fora de src\)
+$extra = Join-Path $PSScriptRoot '..\firmware\cydboy_fw\smsplus_extra'
+if (Test-Path $extra) {
+    Copy-Item (Join-Path $extra '*') $destino -Force
+    Write-Host 'cyd_collide.c copiado para a pasta do SMS Plus.'
+}
 
 # O -O3 do firmware infla o Z80 e o cache de instrucoes da ESP32 (32 KB) nao da conta: o SMS Plus
 # rodou a 5 quadros por segundo. Estes arquivos sao compilados com -Os (como no LatinhaColor).
