@@ -621,6 +621,8 @@ void emu_run_frame() {
         s_next_us = 0;
     }
 
+    // No SMS e no Game Gear os quadros pulados continuam calculando a colisao entre sprites
+    // (sms_collide.c), senao Fantasy Zone e outros nao acertam os tiros.
     bool should_draw = (fskip == 0) || ((fcnt % (fskip + 1)) == 0);
     if (!sms_mode) {
         gb->direct.frame_skip = !should_draw;

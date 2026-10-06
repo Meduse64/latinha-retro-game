@@ -1,5 +1,6 @@
 #include "ui_launcher.h"
 #include "ui_saver.h"
+#include "app_upload.h"
 #include "display.h"
 #include "touch_input.h"
 #include "button_input.h"
@@ -202,9 +203,10 @@ static void draw_list(RomEntry* r, int cnt, int pg, int sel) {
     if (total == 0) {
         tft.setTextColor(COLOR_TEXT_ICE, COLOR_SCREEN_BG);
         tft.setTextDatum(MC_DATUM);
-        tft.drawString("No ROMs found on SD", SCREEN_W / 2, 130, 2);
+        tft.drawString("Nenhum jogo no cartao", SCREEN_W / 2, 100, 2);
         tft.setTextColor(COLOR_LIGHT_BLUE, COLOR_SCREEN_BG);
-        tft.drawString("Use Settings -> USB Manager", SCREEN_W / 2, 155, 2);
+        tft.drawString("Toque em WI-FI (canto de baixo", SCREEN_W / 2, 124, 2);
+        tft.drawString("a direita) para enviar jogos", SCREEN_W / 2, 144, 2);
     }
 
     for (int i = s; i < e; i++) {
@@ -268,7 +270,7 @@ static void draw_list(RomEntry* r, int cnt, int pg, int sel) {
     tft.drawRoundRect(8, nav_y + (NAV_H - 28) / 2, 60, 28, 5, COLOR_CARD_BORDER);
     tft.setTextColor(COLOR_TEXT_ICE, 0x1949);
     tft.setTextDatum(MC_DATUM);
-    tft.drawString("SETTINGS", 38, nav_y + NAV_H / 2, 1);
+    tft.drawString("OPCOES", 38, nav_y + NAV_H / 2, 1);
 
     // Center Page Indicator
     int tp = (total > 0) ? ((total + ITEMS_PP - 1) / ITEMS_PP) : 1;
@@ -279,11 +281,11 @@ static void draw_list(RomEntry* r, int cnt, int pg, int sel) {
     snprintf(ps, sizeof(ps), "< %d / %d >", pg + 1, tp);
     tft.drawString(ps, SCREEN_W / 2, nav_y + NAV_H / 2, 2);
 
-    // Right button [CAL]
+    // Right button [WI-FI]: manda jogos pelo Wi-Fi (a calibracao do toque fica na tela inicial)
     tft.fillRoundRect(SCREEN_W - 68, nav_y + (NAV_H - 28) / 2, 60, 28, 5, 0x1949);
-    tft.drawRoundRect(SCREEN_W - 68, nav_y + (NAV_H - 28) / 2, 60, 28, 5, COLOR_CARD_BORDER);
-    tft.setTextColor(COLOR_TEXT_ICE, 0x1949);
-    tft.drawString("CALIB", SCREEN_W - 38, nav_y + NAV_H / 2, 1);
+    tft.drawRoundRect(SCREEN_W - 68, nav_y + (NAV_H - 28) / 2, 60, 28, 5, COLOR_TURQUOISE);
+    tft.setTextColor(COLOR_TURQUOISE, 0x1949);
+    tft.drawString("WI-FI", SCREEN_W - 38, nav_y + NAV_H / 2, 2);
 }
 
 static void update_selected_marquee(RomEntry* r, int cnt, int pg, int sel, uint32_t sel_start_ms, int* last_scroll_x) {
@@ -409,10 +411,8 @@ int launcher_show(RomEntry* roms, int cnt) {
                 if (tx < 72) {
                     return LAUNCHER_SEL_SETTINGS;
                 } else if (tx > SCREEN_W - 72) {
-                    touch_run_calibration();
-                    draw_header("< Retro");
-                    draw_list(roms, cnt, pg, sel);
-                    delay(250);
+                    wait_release();
+                    return LAUNCHER_SEL_WIFI_UPLOAD;
                 } else if (tx >= 72 && tx < SCREEN_W / 2 && pg > 0) {
                     pg--;
                     sel = pg * ITEMS_PP;
@@ -617,6 +617,7 @@ void launcher_settings_menu(bool* show_fps_overlay, bool* show_save_overlay, boo
 #endif
     const int ROW_BT         = (is_main_menu && !LANDSCAPE) ? (r_idx++) : -1;
     const int ROW_USB        = (is_main_menu && !LANDSCAPE) ? (r_idx++) : -1;
+    const int ROW_WIFI       = (is_main_menu && LANDSCAPE) ? (r_idx++) : -1;   // enviar jogos pelo Wi-Fi
     const int row_done       = r_idx++;
     const int num_rows       = r_idx;
 
@@ -655,10 +656,14 @@ void launcher_settings_menu(bool* show_fps_overlay, bool* show_save_overlay, boo
         row_y[4] = 250; row_h[4] = 34;
     }
 #if LANDSCAPE
-    // Deitado a tela tem 240 px de altura: linhas iguais, com o DONE logo depois da ultima.
-    for (int i = 0; i < num_rows; i++) {
-        row_y[i] = 40 + i * 36 + (i == num_rows - 1 ? 2 : 0);
-        row_h[i] = 32;
+    // Deitado a tela tem 240 px de altura: linhas iguais, com o PRONTO logo depois da ultima.
+    // Com 6 linhas ou mais elas ficam mais juntas para caber.
+    {
+        const int pitch = num_rows > 5 ? 30 : 36;
+        for (int i = 0; i < num_rows; i++) {
+            row_y[i] = 40 + i * pitch + (i == num_rows - 1 ? 2 : 0);
+            row_h[i] = pitch - (pitch == 30 ? 2 : 4);
+        }
     }
 #endif
 
@@ -667,7 +672,7 @@ void launcher_settings_menu(bool* show_fps_overlay, bool* show_save_overlay, boo
         const int row_w = SCREEN_W - 20;
 
         tft.fillScreen(COLOR_SCREEN_BG);
-        draw_header("CYDboy");
+        draw_header("Opcoes");
 
         // Tamanho da imagem
         if (ROW_SIZE >= 0) {
@@ -694,7 +699,7 @@ void launcher_settings_menu(bool* show_fps_overlay, bool* show_save_overlay, boo
 
             tft.setTextColor(COLOR_LIGHT_BLUE, bg);
             tft.setTextDatum(ML_DATUM);
-            tft.drawString("Palette:", row_x + 8, y + 8, 1);
+            tft.drawString("Paleta:", row_x + 8, y + 8, 1);
 
             char palstr[32];
             snprintf(palstr, sizeof(palstr), "%s", emu_get_palette_name(pal));
@@ -721,13 +726,13 @@ void launcher_settings_menu(bool* show_fps_overlay, bool* show_save_overlay, boo
 
             tft.setTextColor(COLOR_LIGHT_BLUE, bg);
             tft.setTextDatum(ML_DATUM);
-            tft.drawString("Frame Skip:", row_x + 8, y + 8, 1);
+            tft.drawString("Pular quadros:", row_x + 8, y + 8, 1);
 
             char fss[32];
-            if (fs == 0) snprintf(fss, sizeof(fss), "0 (40 FPS, Accurate)");
-            else if (fs == 1) snprintf(fss, sizeof(fss), "1 (60 FPS, Fast)");
-            else if (fs == 2) snprintf(fss, sizeof(fss), "2 (60 FPS, Smooth)");
-            else snprintf(fss, sizeof(fss), "%d (Skip %d)", fs, fs);
+            if (fs == 0) snprintf(fss, sizeof(fss), "0 (40 FPS, preciso)");
+            else if (fs == 1) snprintf(fss, sizeof(fss), "1 (60 FPS, rapido)");
+            else if (fs == 2) snprintf(fss, sizeof(fss), "2 (60 FPS, fluido)");
+            else snprintf(fss, sizeof(fss), "%d (pula %d)", fs, fs);
 
             tft.setTextColor(COLOR_TEXT_WHITE, bg);
             tft.drawString(fss, row_x + 8, y + 20, is_main_menu ? 1 : 2);
@@ -743,7 +748,7 @@ void launcher_settings_menu(bool* show_fps_overlay, bool* show_save_overlay, boo
 
             tft.setTextColor(COLOR_LIGHT_BLUE, bg);
             tft.setTextDatum(ML_DATUM);
-            tft.drawString("Brightness:", row_x + 8, y + 8, 1);
+            tft.drawString("Brilho:", row_x + 8, y + 8, 1);
 
             int total_steps = 8;
             int active_steps = (bl * total_steps + 127) / 255;
@@ -772,7 +777,7 @@ void launcher_settings_menu(bool* show_fps_overlay, bool* show_save_overlay, boo
 
             tft.setTextColor(COLOR_LIGHT_BLUE, bg);
             tft.setTextDatum(ML_DATUM);
-            tft.drawString("Sound Volume:", row_x + 8, y + 8, 1);
+            tft.drawString("Volume do som:", row_x + 8, y + 8, 1);
 
             uint8_t vol = audio_get_volume();
             int bar_x = row_x + 8;
@@ -797,7 +802,7 @@ void launcher_settings_menu(bool* show_fps_overlay, bool* show_save_overlay, boo
 
             tft.setTextColor(COLOR_LIGHT_BLUE, bg);
             tft.setTextDatum(ML_DATUM);
-            tft.drawString("Menu Music (BGM):", row_x + 8, y + h / 2, 1);
+            tft.drawString("Musica do menu:", row_x + 8, y + h / 2, 1);
 
             bool bgm_on = bgm_is_enabled();
             int btn_h = is_main_menu ? 18 : 24;
@@ -823,7 +828,7 @@ void launcher_settings_menu(bool* show_fps_overlay, bool* show_save_overlay, boo
 
             tft.setTextColor((selrow == ROW_BT) ? COLOR_TEXT_WHITE : COLOR_TEXT_ICE, bg);
             tft.setTextDatum(ML_DATUM);
-            tft.drawString("Bluetooth Gamepad", row_x + 46, y + 17, 2);
+            tft.drawString("Controle Bluetooth", row_x + 46, y + 17, 2);
         }
 
         // USB ROM Manager
@@ -841,7 +846,25 @@ void launcher_settings_menu(bool* show_fps_overlay, bool* show_save_overlay, boo
 
             tft.setTextColor((selrow == ROW_USB) ? COLOR_TEXT_WHITE : COLOR_TEXT_ICE, bg);
             tft.setTextDatum(ML_DATUM);
-            tft.drawString("USB ROM Manager", row_x + 46, y + 17, 2);
+            tft.drawString("Gerenciador USB", row_x + 46, y + 17, 2);
+        }
+
+        // Enviar jogos pelo Wi-Fi
+        if (ROW_WIFI >= 0) {
+            int y = row_y[ROW_WIFI], h = row_h[ROW_WIFI];
+            uint16_t bg = (selrow == ROW_WIFI) ? COLOR_CARD_SEL_BG : COLOR_CARD_BG;
+            uint16_t border = (selrow == ROW_WIFI) ? COLOR_CYAN_GLOW : COLOR_CARD_BORDER;
+            tft.fillRoundRect(row_x, y, row_w, h, 5, bg);
+            tft.drawRoundRect(row_x, y, row_w, h, 5, border);
+
+            tft.fillRoundRect(row_x + 6, y + (h - 20) / 2, 40, 20, 4, COLOR_TURQUOISE);
+            tft.setTextColor(TFT_BLACK, COLOR_TURQUOISE);
+            tft.setTextDatum(MC_DATUM);
+            tft.drawString("WIFI", row_x + 26, y + h / 2, 1);
+
+            tft.setTextColor((selrow == ROW_WIFI) ? COLOR_TEXT_WHITE : COLOR_TEXT_ICE, bg);
+            tft.setTextDatum(ML_DATUM);
+            tft.drawString("Enviar jogos pelo Wi-Fi", row_x + 54, y + h / 2, 2);
         }
 
         // Row DONE Button
@@ -854,7 +877,7 @@ void launcher_settings_menu(bool* show_fps_overlay, bool* show_save_overlay, boo
             tft.drawRoundRect(SCREEN_W / 2 - 60, y, 120, h, 5, border);
             tft.setTextColor(textc, donebg);
             tft.setTextDatum(MC_DATUM);
-            tft.drawString("DONE", SCREEN_W / 2, y + h / 2, 2);
+            tft.drawString("PRONTO", SCREEN_W / 2, y + h / 2, 2);
         }
     };
 
@@ -917,6 +940,12 @@ void launcher_settings_menu(bool* show_fps_overlay, bool* show_save_overlay, boo
                         wait_release();
                     } else if (ROW_USB >= 0 && i == ROW_USB) {
                         serial_manager_run();
+                        display_clear(COLOR_SCREEN_BG);
+                        draw_settings(i);
+                        wait_release();
+                    } else if (ROW_WIFI >= 0 && i == ROW_WIFI) {
+                        wait_release();
+                        upload_run();
                         display_clear(COLOR_SCREEN_BG);
                         draw_settings(i);
                         wait_release();
@@ -1013,6 +1042,12 @@ void launcher_settings_menu(bool* show_fps_overlay, bool* show_save_overlay, boo
                 wait_release();
             } else if (ROW_USB >= 0 && sel == ROW_USB) {
                 serial_manager_run();
+                display_clear(COLOR_SCREEN_BG);
+                draw_settings(sel);
+                wait_release();
+            } else if (ROW_WIFI >= 0 && sel == ROW_WIFI) {
+                wait_release();
+                upload_run();
                 display_clear(COLOR_SCREEN_BG);
                 draw_settings(sel);
                 wait_release();

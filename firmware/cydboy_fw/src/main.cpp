@@ -13,6 +13,7 @@
 #include "app_onibus.h"
 #include "app_agenda.h"
 #include "net.h"
+#include "app_upload.h"
 #include <esp_sleep.h>
 #include <driver/gpio.h>
 #include "audio_output.h"
@@ -167,8 +168,8 @@ void setup() {
 
     if(!sd_init()) {
         tft.fillScreen(TFT_BLACK); tft.setTextDatum(MC_DATUM);
-        tft.setTextColor(TFT_RED); tft.drawString("SD Card Error!",SCREEN_W/2,100,4);
-        tft.setTextColor(0x7BEF); tft.drawString("Insert FAT32 SD & reset",SCREEN_W/2,140,2);
+        tft.setTextColor(TFT_RED); tft.drawString("Erro no cartao SD!",SCREEN_W/2,100,4);
+        tft.setTextColor(0x7BEF); tft.drawString("Ponha um SD FAT32 e reinicie",SCREEN_W/2,140,2);
         while(true) delay(1000);
     }
 
@@ -251,10 +252,11 @@ void loop() {
         launcher_settings_menu(&show_fps_overlay, &show_sd_save_overlay, true);
         return;
     }
-    // if (sel == LAUNCHER_SEL_WIFI_UPLOAD) {
-    //     wifi_upload_run();
-    //     return;
-    // }
+    if (sel == LAUNCHER_SEL_WIFI_UPLOAD) {
+        if (roms) { free(roms); roms = nullptr; }
+        upload_run();          // volta para a lista, que le o cartao de novo
+        return;
+    }
     if (sel < 0 || sel >= rcnt) {
         if (roms) { free(roms); roms = nullptr; }
         return;
@@ -265,7 +267,7 @@ void loop() {
 
     // Loading screen
     tft.fillScreen(TFT_BLACK); tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(0x07E0); tft.drawString("Loading...", SCREEN_W/2, 90, 4);
+    tft.setTextColor(0x07E0); tft.drawString("Carregando...", SCREEN_W/2, 90, 4);
     char nm[30]; strncpy(nm, roms[sel].filename, 28); nm[28] = 0;
     char* d = strrchr(nm, '.'); if (d) *d = 0;
     tft.setTextColor(TFT_WHITE); tft.drawString(nm, SCREEN_W/2, 130, 2);
@@ -273,7 +275,7 @@ void loop() {
     if (roms) { free(roms); roms = nullptr; }
 
     if (!emu_open_rom(cur_path)) {
-        tft.setTextColor(TFT_RED); tft.drawString("Open failed!",SCREEN_W/2,170,2); delay(2000); return;
+        tft.setTextColor(TFT_RED); tft.drawString("Nao abriu o jogo!",SCREEN_W/2,170,2); delay(2000); return;
     }
     if(!emu_init(0,0)){
         tft.setTextColor(TFT_RED);

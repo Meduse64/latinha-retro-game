@@ -47,7 +47,7 @@ void display_set_backlight(uint8_t level) {
         pinMode(TFT_PIN_BL, OUTPUT);
         digitalWrite(TFT_PIN_BL, LOW);
     } else {
-        ledcAttachPin(TFT_PIN_BL, 0);
+        if (!s_bl_pwm) ledcAttachPin(TFT_PIN_BL, 0);
         ledcWrite(0, level);
     }
 }

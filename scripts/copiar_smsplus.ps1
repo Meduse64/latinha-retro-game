@@ -1,7 +1,9 @@
-﻿# Copia o SMS Plus (Game Gear e Master System) do projeto LatinhaColor para o firmware.
+# Copia o SMS Plus (Game Gear e Master System) do projeto LatinhaColor para o firmware.
 # Os arquivos ficam em firmware\cydboy_fw\src\smsplus, que o git ignora: o Z80 tem licenca
 # "so uso nao comercial" e o SMS Plus e GPL v2, entao eles nao vao para o repositorio publico.
 # Sem essa pasta o firmware compila normalmente, so sem Game Gear e Master System (HAS_SMS = 0).
+# O arquivo cyd_collide.c (colisao entre sprites nos quadros pulados) tambem mora nessa pasta: o script so
+# copia por cima, nao apaga nada, entao ele continua la.
 param([string]$Latinha = "$HOME\OneDrive\Documents\arduino\00-Projects\LatinhaColor")
 
 $origem  = Join-Path $Latinha 'src\smsplus'

@@ -310,7 +310,22 @@ Um sketch de teste de hardware (tela ×1,5 em pé, as 9 teclas, PCF8574 com dete
 
 ## 11. Apps e controles (decisão atual)
 
-**Apps que vêm do LatinhaColor: só Retro, Tempo e Ônibus.** O Bicho, os Jogos, as Mensagens (Telegram) e o monitor de Net saem do plano. A tela de início tem três caixas lado a lado (Retro, Tempo e Ônibus), tudo deitado em 320×240.
+**Apps: Retro, Tempo, Ônibus (vêm do LatinhaColor) e Agenda (nova).** O Bicho, os Jogos, as Mensagens (Telegram) e o monitor de Net saem do plano. A tela de início tem quatro blocos (2×2), tudo deitado em 320×240. Cada bloco tem o ícone à esquerda, um texto grande ao lado e uma linha de detalhe embaixo, que desfila quando não cabe:
+
+| Bloco | Texto grande | Embaixo |
+|-------|--------------|---------|
+| Retro | `Retro` | `GB  GG  SMS` |
+| Tempo | temperatura (o ícone muda com o clima) | `Poucas nuvens` |
+| Ônibus | a linha que sai primeiro (`Metro` ou `S.All`) | `em 10 min` |
+| Agenda | data do próximo evento (`10 Nov`) | `14:30 Fisio` |
+
+**Agenda:** mostra os eventos do Google Calendar pelo "endereço secreto no formato iCal" (o mesmo do projeto Meteo, com eventos repetidos por RRULE). O endereço fica no `secrets.h`.
+
+**Protetor de tela e sono:** depois de 5 min sem usar (nos menus e apps, nunca nos jogos) aparecem uns olhos animados; aos 10 min a placa entra em deep sleep e **acorda com um toque na tela** (o pino de interrupção do toque, IO36). Tocar em "Latinha" na tela inicial liga os olhos na hora e eles ficam até alguém tocar, sem dormir.
+
+**Game Gear e Master System com "Pular quadros":** o VDP só marca a colisão entre sprites (bit 0x20 do status, que o Fantasy Zone usa para acertar os tiros) quando a linha é desenhada. Com quadros pulados a flag nunca subia e o tiro atravessava o inimigo. Desenhar todos os quadros resolvia, mas custava metade da velocidade (33 FPS), então os quadros pulados agora só fazem a conta da colisão (`render_obj_collide`, em `smsplus/cyd_collide.c`), sem desenhar. Medido no Fantasy Zone: 50 a 61 FPS, e os tiros acertam.
+
+**Enviar jogos pelo Wi-Fi:** o botão **ENVIAR** da lista do Retro (e a linha "Enviar jogos pelo Wi-Fi" nas Opções) liga o Wi-Fi e mostra um endereço (`http://192.168.x.x`). No navegador do PC ou do celular, na mesma rede, a página deixa escolher as ROMs (`.gb`, `.gbc`, `.gg`, `.sms`); cada uma vai para a pasta certa do cartão SD (`/roms/gb`, `/roms/gbc`, `/roms/gg`, `/roms/sms`). A página também lista e apaga jogos. **Não tem senha:** só use na rede de casa. A calibração do toque fica na tela inicial (SELECT, ou toque no rodapé).
 
 | Ação | Toque | Botões físicos |
 |------|-------|----------------|
@@ -328,6 +343,6 @@ O toque é resistivo e não é bom para arrastar o dedo, por isso as listas rola
 
 **O que o Tempo e o Ônibus precisam:**
 - **Hora certa:** Wi-Fi e NTP. O Ônibus usa só a hora, porque as tabelas de horário ficam no código. O Tempo busca a previsão do Rio no Open-Meteo, sem chave de acesso.
-- **Dados do Wi-Fi:** num `secrets.h` local, **fora do git**.
-- **Partição maior:** com o Wi-Fi e a conexão segura o programa passa de 1,3 MB, então o firmware vai para o esquema "No OTA" (2 MB para o programa, 2 MB para os dados). As ROMs de Game Gear e Master System, copiadas para a flash, são recopiadas do cartão na primeira vez.
+- **Dados do Wi-Fi e da agenda:** num `secrets.h` local, **fora do git** (o modelo é o `secrets.example.h`).
+- **Partição maior:** com o Wi-Fi e a conexão segura o programa passa de 1,3 MB, então o firmware é compilado com o esquema "No OTA" (2 MB para o programa, 2 MB para os dados): `PartitionScheme=no_ota` no fqbn. As ROMs de Game Gear e Master System, copiadas para a flash, são recopiadas do cartão na primeira vez.
 - **RAM:** a conexão segura pede uns 40 KB livres. Fora dos jogos sobram uns 215 KB, e durante um jogo de SMS uns 180 KB.

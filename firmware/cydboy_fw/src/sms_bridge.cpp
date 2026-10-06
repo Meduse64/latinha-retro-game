@@ -143,6 +143,29 @@ void smsb_close() {
 
 void smsb_reset() { system_reset(); }
 
+// Igual ao sms_frame() do SMS Plus (sms.c), so que nos quadros pulados ainda calcula a colisao
+// entre sprites (render_obj_collide em sms_collide.c). Sem isso Fantasy Zone e outros nao acertam
+// os tiros nos quadros que nao sao desenhados. O som fica desligado (emu_system_init(0)).
+extern "C" void render_obj_collide(int line);
+static void sms_frame_cyd(bool draw) {
+    if (input.system & INPUT_HARD_RESET) system_reset();
+    if (input.system & INPUT_PAUSE) {
+        if (!sms.paused) {
+            sms.paused = 1;
+            z80_set_nmi_line(ASSERT_LINE);
+            z80_set_nmi_line(CLEAR_LINE);
+        }
+    } else {
+        sms.paused = 0;
+    }
+    for (vdp.line = 0; vdp.line < 262; vdp.line += 1) {
+        vdp_run();
+        if (draw) render_line(vdp.line);
+        else render_obj_collide(vdp.line);
+        z80_execute(227);
+    }
+}
+
 // Mapeia os botoes do CYDboy (1 = apertado) para os do SMS Plus.
 // B = botao 1, A = botao 2, Start = Start (Game Gear) ou Pause (Master System).
 void smsb_run_frame(uint8_t jpad, bool draw) {
@@ -155,7 +178,7 @@ void smsb_run_frame(uint8_t jpad, bool draw) {
     if (jpad & 0x10) p |= INPUT_BUTTON2;
     input.pad[0] = p;
     input.system = (jpad & 0x80) ? (s_sys == SYS_GG ? INPUT_START : INPUT_PAUSE) : 0;
-    sms_frame(draw ? 0 : 1);
+    sms_frame_cyd(draw);
 }
 
 // ─── Chamados pelo SMS Plus ─────────────────────────────────────────────────
