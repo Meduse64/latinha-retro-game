@@ -1,5 +1,7 @@
 #pragma once
 #include <stddef.h>
+#include <stdint.h>
 // App Onibus: proximas saidas da parada Pontal (VIPBUS), com horarios fixos (os mesmos do projeto Meteo).
 void app_onibus_run();
-bool onibus_summary(char* out, size_t n);   // "Metro em 8 min" para a tela de inicio; false sem hora
+// Dados do bloco da tela de inicio: big = linha que sai primeiro ("Metro" ou "S.All"), small = "em 8 min"; false sem hora
+bool onibus_tile(char* big, size_t nb, char* small, size_t ns, uint16_t* color);

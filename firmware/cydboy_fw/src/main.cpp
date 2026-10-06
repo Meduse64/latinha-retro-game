@@ -13,6 +13,8 @@
 #include "app_onibus.h"
 #include "app_agenda.h"
 #include "net.h"
+#include <esp_sleep.h>
+#include <driver/gpio.h>
 #include "audio_output.h"
 #include "bgm_player.h"
 #include "cydboy_logo.h"
@@ -144,6 +146,12 @@ static void run_bt_scanner() {
 void setup() {
     Serial.begin(115200); delay(200);
     Serial.println("\n=== CYDboy ===");
+    // Voltando do deep sleep: solta os pinos que ficaram presos (backlight e LED)
+    gpio_hold_dis((gpio_num_t)TFT_PIN_BL);
+    gpio_hold_dis((gpio_num_t)LED_R_PIN);
+    gpio_deep_sleep_hold_dis();
+    const esp_sleep_wakeup_cause_t wk = esp_sleep_get_wakeup_cause();
+    Serial.printf("[INIT] causa da partida: %d (0 = ligou a frio)\n", (int)wk);
     pinMode(LED_R_PIN, OUTPUT);
     if (LED_G_PIN >= 0) pinMode(LED_G_PIN, OUTPUT);
     if (LED_B_PIN >= 0) pinMode(LED_B_PIN, OUTPUT);
@@ -166,7 +174,8 @@ void setup() {
 
     bgm_init();
 
-    // Splash
+    // Splash (so quando liga a frio; ao acordar do sono vai direto para a tela inicial)
+    if (wk == ESP_SLEEP_WAKEUP_UNDEFINED) {
     tft.fillScreen(TFT_BLACK);
     int logo_x = (SCREEN_W - CYDBOY_LOGO_W) / 2;
     int logo_y = LANDSCAPE ? 90 : 110;
@@ -180,6 +189,7 @@ void setup() {
     while (millis() - splash_start < 800) {
         bt_controller_update();
         delay(20);
+    }
     }
 
     // Auto-run calibration on boot if no calibration data is present

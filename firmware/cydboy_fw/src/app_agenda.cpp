@@ -308,9 +308,7 @@ void drawAll(int top) {
             uint16_t bg = (i & 1) ? K_BG : K_CARD;
             tft.fillRoundRect(4, y, 278, ROW_H - 2, 5, bg);
             if (idx >= nEv) continue;
-            tft.setViewport(10, y + 1, 268, ROW_H - 2, false);
-            ui_text(10, y + 2, eventos[idx].titulo, K_WHITE, bg, 2, TL_DATUM);
-            tft.resetViewport();
+            ui_fit_text(10, y + 10, 266, eventos[idx].titulo, K_WHITE, bg, ML_DATUM);
             quando(eventos[idx], b, sizeof(b));
             ui_text(10, y + 19, b, K_AMBER, bg, 2, TL_DATUM);
         }
@@ -323,15 +321,20 @@ void drawAll(int top) {
         tft.drawRoundRect(ax, Y0 + ah + 6, aw, ah, 5, maisBaixo ? K_CYAN : K_BORDER);
         tft.fillTriangle(ax + aw / 2, Y0 + ah + 6 + 52, ax + 7, Y0 + ah + 6 + 30, ax + aw - 7, Y0 + ah + 6 + 30, maisBaixo ? K_CYAN : K_BORDER);
     }
-    ui_footer("A atualiza · setas rolam · B volta");
+    ui_footer("A atualiza - setas rolam - B volta");
 }
 
 }  // namespace
 
-bool agenda_summary(char* out, size_t n) {
+bool agenda_tile(char* big, size_t nb, char* small, size_t ns) {
+    static const char* const MESES_C[] = { "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez" };
     if (!have) return false;
-    if (nEv == 0) { snprintf(out, n, "Sem eventos proximos"); return true; }
-    snprintf(out, n, "%s", eventos[0].titulo);
+    if (nEv == 0) { snprintf(big, nb, "Livre"); snprintf(small, ns, "Sem eventos proximos"); return true; }
+    struct tm t;
+    localtime_r(&eventos[0].quando, &t);
+    snprintf(big, nb, "%d %s", t.tm_mday, MESES_C[t.tm_mon]);       // sempre a data, mesmo se for hoje ou amanha
+    if (eventos[0].diaTodo) snprintf(small, ns, "%s", eventos[0].titulo);
+    else snprintf(small, ns, "%02d:%02d %s", t.tm_hour, t.tm_min, eventos[0].titulo);
     return true;
 }
 
@@ -348,7 +351,7 @@ void app_agenda_run() {
     while (true) {
         ui_poll(in);
         if ((in.pressed & (GB_BTN_B | GB_BTN_START)) || (in.tap && in.ty < UI_HEADER_H)) return;
-        bool redraw = false;
+        bool redraw = in.woke;
         int maxTop = max(0, nEv - ROWS);
         int nt = top;
         if (in.pressed & GB_BTN_UP) nt = max(0, top - 1);

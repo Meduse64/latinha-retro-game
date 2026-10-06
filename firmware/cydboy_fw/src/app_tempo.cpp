@@ -298,16 +298,20 @@ void drawAll(int tab, int top) {
     } else if (tab == 0) drawNow();
     else if (tab == 1) drawHours(top);
     else drawDays();
-    ui_footer(tab == 1 ? "abas · setas rolam · A atualiza · B volta" : "toque nas abas · A atualiza · B volta");
+    ui_footer(tab == 1 ? "abas - setas rolam - A atualiza - B volta" : "toque nas abas - A atualiza - B volta");
 }
 
 }  // namespace
 
-bool tempo_summary(char* out, size_t n) {
+bool tempo_tile(char* big, size_t nb, char* small, size_t ns, uint16_t* color) {
     if (!have) return false;
-    snprintf(out, n, "%d C  %s", (int)roundf(curTemp), kindText(kindOf(curCode)));
+    snprintf(big, nb, "%d", (int)roundf(curTemp));
+    snprintf(small, ns, "%s", kindText(kindOf(curCode)));
+    *color = tempColor(curTemp);
     return true;
 }
+
+void tempo_icon(int x, int y) { drawIcon(x, y, have ? kindOf(curCode) : KS_PARTLY, 3); }
 
 void app_tempo_run() {
     ui_wait_release();
@@ -330,7 +334,7 @@ void app_tempo_run() {
         }
         if (in.pressed & GB_BTN_RIGHT) newTab = (tab + 1) % 3;
         if (in.pressed & GB_BTN_LEFT) newTab = (tab + 2) % 3;
-        bool redraw = false;
+        bool redraw = in.woke;
         if (newTab != tab) { tab = newTab; top = 0; redraw = true; }
 
         if (tab == 1 && have) {

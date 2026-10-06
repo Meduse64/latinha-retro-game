@@ -1,4 +1,5 @@
 #include "ui_launcher.h"
+#include "ui_saver.h"
 #include "display.h"
 #include "touch_input.h"
 #include "button_input.h"
@@ -354,6 +355,14 @@ int launcher_show(RomEntry* roms, int cnt) {
 
         button_update();
         uint16_t b = button_get_buttons();
+
+        if ((b & 0xFF) || touch_is_pressed()) saver_activity();
+        else if (saver_due()) {                              // 5 min sem usar: olhos (e depois deep sleep)
+            saver_run(false);
+            draw_header("< Retro");
+            draw_list(roms, cnt, pg, sel);
+            continue;
+        }
 
         bool curr_conn = bt_controller_is_connected();
         if (curr_conn != last_conn) {

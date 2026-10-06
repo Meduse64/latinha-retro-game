@@ -8,7 +8,7 @@ namespace {
 
 struct HoraMin { uint8_t h, m; };
 struct Linha {
-    const char* nome; uint16_t cor;
+    const char* nome; const char* curto; uint16_t cor;   // curto: nome que cabe no bloco da tela de inicio
     const HoraMin* util; int nUtil;
     const HoraMin* sab;  int nSab;
     const HoraMin* dom;  int nDom;
@@ -23,8 +23,8 @@ const HoraMin ALLENDE_DOM[]  = {{8,30},{15,0}};
 
 #define N_(a) (int)(sizeof(a) / sizeof(HoraMin))
 const Linha LINHAS[2] = {
-    { "Metro",     K_AMBER, METRO_UTIL,   N_(METRO_UTIL),   METRO_SAB,   N_(METRO_SAB),   METRO_DOM,   N_(METRO_DOM) },
-    { "S.Allende", K_CYAN,  ALLENDE_UTIL, N_(ALLENDE_UTIL), ALLENDE_SAB, N_(ALLENDE_SAB), ALLENDE_DOM, N_(ALLENDE_DOM) },
+    { "Metro",     "Metro", K_AMBER, METRO_UTIL,   N_(METRO_UTIL),   METRO_SAB,   N_(METRO_SAB),   METRO_DOM,   N_(METRO_DOM) },
+    { "S.Allende", "S.All", K_CYAN,  ALLENDE_UTIL, N_(ALLENDE_UTIL), ALLENDE_SAB, N_(ALLENDE_SAB), ALLENDE_DOM, N_(ALLENDE_DOM) },
 };
 #undef N_
 
@@ -99,13 +99,18 @@ void draw(int sel, const struct tm& t) {
 
 }  // namespace
 
-bool onibus_summary(char* out, size_t n) {
+bool onibus_tile(char* big, size_t nb, char* small, size_t ns, uint16_t* color) {
     struct tm t;
     if (!net_local_time(&t)) return false;
-    int falta[1]; HoraMin hm[1];
-    if (proximas(LINHAS[0], t, 1, falta, hm) < 1) return false;
-    char f[20]; faltaText(f, sizeof(f), falta[0]);
-    snprintf(out, n, "Metro %s", f);
+    int best = -1, bestMin = 0;
+    for (int i = 0; i < 2; i++) {                      // a linha que sai primeiro
+        int falta[1]; HoraMin hm[1];
+        if (proximas(LINHAS[i], t, 1, falta, hm) >= 1 && (best < 0 || falta[0] < bestMin)) { best = i; bestMin = falta[0]; }
+    }
+    if (best < 0) return false;
+    snprintf(big, nb, "%s", LINHAS[best].curto);
+    faltaText(small, ns, bestMin);
+    *color = LINHAS[best].cor;
     return true;
 }
 
@@ -120,7 +125,7 @@ void app_onibus_run() {
     }
     ui_header("Onibus", "Pontal");
     tft.fillRect(0, UI_HEADER_H + 1, SCREEN_W, SCREEN_H - UI_HEADER_H - 1 - UI_FOOTER_H, K_BG);
-    ui_footer("toque numa linha · cima/baixo · B volta");
+    ui_footer("toque numa linha - cima/baixo - B volta");
 
     int sel = 0;
     int lastMin = -1;
@@ -129,6 +134,12 @@ void app_onibus_run() {
     while (true) {
         ui_poll(in);
         if ((in.pressed & (GB_BTN_B | GB_BTN_START)) || (in.tap && in.ty < UI_HEADER_H)) return;
+        if (in.woke) {
+            tft.fillScreen(K_BG);
+            ui_header("Onibus", "Pontal");
+            ui_footer("toque numa linha - cima/baixo - B volta");
+            lastMin = -1; redraw = true;
+        }
         if (in.pressed & (GB_BTN_UP | GB_BTN_DOWN)) { sel ^= 1; redraw = true; }
         if (in.tap) {
             for (int i = 0; i < 2; i++) {

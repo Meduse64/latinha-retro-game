@@ -50,6 +50,8 @@
 #define BUTTON_I2C_ADDR 0x20
 #define BUTTON_I2C_SDA  22   // conector CN1 (o original usava 16, que no CYD e o LED RGB)
 #define BUTTON_I2C_SCL  27   // conector CN1
+#define SAVER_AFTER_MS  (5UL * 60UL * 1000UL)    // sem usar: aparecem os olhos
+#define SLEEP_AFTER_MS  (10UL * 60UL * 1000UL)   // sem usar: deep sleep
 
 #define LED_R_PIN 4
 #define LED_G_PIN -1

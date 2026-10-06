@@ -1,15 +1,39 @@
 #include "ui_home.h"
 #include "ui_kit.h"
+#include "ui_saver.h"
 #include "net.h"
 #include "app_tempo.h"
 #include "app_onibus.h"
 #include "app_agenda.h"
+#include "touch_input.h"
 
 namespace {
 
 const int TW = 148, TH = 88, TX0 = 8, TY0 = UI_HEADER_H + 6, GAPX = 8, GAPY = 6;
 const char* const NAMES[4] = { "Retro", "Tempo", "Onibus", "Agenda" };
 const uint16_t ACCENT[4] = { K_TEAL, K_AMBER, K_LBLUE, K_RED };
+
+// Cada bloco: icone a esquerda, texto grande ao lado e uma linha de detalhe embaixo.
+// A linha de baixo desfila quando nao cabe (pausa, anda 40 px/s, repete com uma folga).
+const int ICON_X = 10, ICON_Y = 6;
+const int BIG_X = 64, BIG_W = 78, BIG_Y = 30;
+const int SUB_X = 10, SUB_Y = 70, SUB_W = TW - 20, SUB_H = 18;
+const int SCROLL_GAP = 40, SCROLL_SPEED = 40;
+const uint32_t SCROLL_PAUSE = 1500;
+
+struct Info {
+    char big[24];        // texto grande
+    char small[80];      // linha de baixo
+    uint16_t bigColor;
+    bool degree;         // temperatura: desenha o grau e o C depois do numero
+};
+Info s_info[4];
+int s_subW[4];
+bool s_scroll[4];
+uint32_t s_t0[4];
+int s_lastOff[4];
+int s_sel = 0;
+TFT_eSprite* s_spr = nullptr;
 
 // ---- icones (48x48) feitos com formas simples ----
 void iconRetro(int x, int y) {
@@ -18,17 +42,6 @@ void iconRetro(int x, int y) {
     tft.fillRect(x + 11, y + 18, 5, 11, K_WHITE);
     tft.fillCircle(x + 33, y + 22, 3, K_RED);
     tft.fillCircle(x + 40, y + 27, 3, K_CYAN);
-}
-void iconTempo(int x, int y) {
-    tft.fillCircle(x + 18, y + 17, 9, K_YELLOW);
-    for (int a = 0; a < 8; a++) {
-        float t = a * PI / 4;
-        tft.drawLine(x + 18 + cosf(t) * 12, y + 17 + sinf(t) * 12, x + 18 + cosf(t) * 17, y + 17 + sinf(t) * 17, K_ORANGE);
-    }
-    tft.fillCircle(x + 22, y + 34, 7, 0xDF1C);
-    tft.fillCircle(x + 32, y + 30, 9, 0xDF1C);
-    tft.fillCircle(x + 41, y + 35, 6, 0xDF1C);
-    tft.fillRect(x + 22, y + 34, 19, 7, 0xDF1C);
 }
 void iconOnibus(int x, int y) {
     tft.fillRoundRect(x + 3, y + 6, 42, 32, 6, K_AMBER);
@@ -48,7 +61,7 @@ void iconAgenda(int x, int y) {
 }
 void icon(int i, int x, int y) {
     if (i == 0) iconRetro(x, y);
-    else if (i == 1) iconTempo(x, y);
+    else if (i == 1) tempo_icon(x, y);        // o icone muda com o tempo de agora
     else if (i == 2) iconOnibus(x, y);
     else iconAgenda(x, y);
 }
@@ -58,36 +71,115 @@ void tilePos(int i, int* x, int* y) {
     *y = TY0 + (i / 2) * (TH + GAPY);
 }
 
-void drawTile(int i, bool sel, const char* sub) {
+void getInfo(int i, Info& f) {
+    f.degree = false;
+    f.bigColor = K_ICE;
+    f.small[0] = 0;
+    snprintf(f.big, sizeof(f.big), "%s", NAMES[i]);          // sem dados: fica o nome do app
+    uint16_t c = K_ICE;
+    if (i == 0) {
+        snprintf(f.small, sizeof(f.small), "GB  GG  SMS");
+    } else if (i == 1) {
+        if (tempo_tile(f.big, sizeof(f.big), f.small, sizeof(f.small), &c)) { f.bigColor = c; f.degree = true; }
+        else snprintf(f.small, sizeof(f.small), "Previsao do Rio");
+    } else if (i == 2) {
+        if (onibus_tile(f.big, sizeof(f.big), f.small, sizeof(f.small), &c)) f.bigColor = c;
+        else snprintf(f.small, sizeof(f.small), "Parada Pontal");
+    } else {
+        if (!agenda_tile(f.big, sizeof(f.big), f.small, sizeof(f.small))) snprintf(f.small, sizeof(f.small), "Google Calendar");
+    }
+}
+
+void drawBig(int x, int y, const Info& f, bool sel, uint16_t bg) {
+    const int bx = x + BIG_X, by = y + BIG_Y;
+    const uint16_t col = (f.bigColor == K_ICE && sel) ? K_WHITE : f.bigColor;
+    if (f.degree) {                                          // "24" + grau + "C" (a fonte nao tem o simbolo de grau)
+        int w = tft.textWidth(f.big, 4);
+        ui_text(bx, by, f.big, col, bg, 4, ML_DATUM);
+        tft.drawCircle(bx + w + 4, by - 10, 3, col);
+        ui_text(bx + w + 10, by, "C", col, bg, 4, ML_DATUM);
+        return;
+    }
+    const uint8_t font = tft.textWidth(f.big, 4) <= BIG_W ? 4 : 2;   // se nao couber, fonte menor
+    ui_text(bx, by, f.big, col, bg, font, ML_DATUM);
+}
+
+// off so conta quando o texto desfila
+void drawSub(int i, int off) {
+    int x, y; tilePos(i, &x, &y);
+    uint16_t bg = (i == s_sel) ? K_CARDSEL : K_CARD;
+    if (!s_scroll[i]) {
+        ui_fit_text(x + SUB_X, y + SUB_Y, SUB_W, s_info[i].small, ACCENT[i], bg, ML_DATUM);
+        return;
+    }
+    s_spr->fillSprite(bg);
+    s_spr->setTextColor(ACCENT[i], bg);
+    s_spr->setTextDatum(ML_DATUM);
+    s_spr->drawString(s_info[i].small, -off, SUB_H / 2, 2);
+    s_spr->drawString(s_info[i].small, -off + s_subW[i] + SCROLL_GAP, SUB_H / 2, 2);
+    s_spr->pushSprite(x + SUB_X, y + SUB_Y - SUB_H / 2);
+    s_lastOff[i] = off;
+}
+
+void stepScroll(uint32_t now) {
+    for (int i = 0; i < 4; i++) {
+        if (!s_scroll[i]) continue;
+        const uint32_t cycle = s_subW[i] + SCROLL_GAP;
+        const uint32_t travel = cycle * 1000UL / SCROLL_SPEED;
+        const uint32_t ph = (now - s_t0[i]) % (SCROLL_PAUSE + travel);
+        const int off = ph < SCROLL_PAUSE ? 0 : (int)((ph - SCROLL_PAUSE) * SCROLL_SPEED / 1000);
+        if (off != s_lastOff[i]) drawSub(i, off);
+    }
+}
+
+void drawTile(int i, bool sel) {
     int x, y; tilePos(i, &x, &y);
     uint16_t bg = sel ? K_CARDSEL : K_CARD;
     tft.fillRoundRect(x, y, TW, TH, 9, bg);
     tft.drawRoundRect(x, y, TW, TH, 9, sel ? ACCENT[i] : K_BORDER);
     if (sel) tft.drawRoundRect(x + 1, y + 1, TW - 2, TH - 2, 8, ACCENT[i]);
-    icon(i, x + 10, y + 6);
-    ui_text(x + 66, y + 30, NAMES[i], sel ? K_WHITE : K_ICE, bg, 4, ML_DATUM);
-    tft.setViewport(x + 8, y + 58, TW - 16, 24, false);
-    ui_text(x + 10, y + 70, sub, ACCENT[i], bg, 2, ML_DATUM);
-    tft.resetViewport();
+    icon(i, x + ICON_X, y + ICON_Y);
+    drawBig(x, y, s_info[i], sel, bg);
+    drawSub(i, 0);
 }
 
-void subtitle(int i, char* b, size_t n) {
-    b[0] = 0;
-    if (i == 0) snprintf(b, n, "GB  GG  SMS");
-    else if (i == 1) { if (!tempo_summary(b, n)) snprintf(b, n, "Previsao do Rio"); }
-    else if (i == 2) { if (!onibus_summary(b, n)) snprintf(b, n, "Parada Pontal"); }
-    else { if (!agenda_summary(b, n)) snprintf(b, n, "Google Calendar"); }
+// Prepara o texto de baixo (largura, se desfila) e recomeca o desfile
+void setupSub(int i) {
+    s_subW[i] = tft.textWidth(s_info[i].small, 2);
+    s_scroll[i] = s_spr && s_subW[i] > SUB_W;
+    s_t0[i] = millis();
+    s_lastOff[i] = -1;
 }
 
 void drawAll(int sel) {
-    char b[48];
     struct tm t;
     char clk[8] = "--:--";
     if (net_local_time(&t)) snprintf(clk, sizeof(clk), "%02d:%02d", t.tm_hour, t.tm_min);
     ui_header("Latinha", clk, false);
     tft.fillRect(0, UI_HEADER_H + 1, SCREEN_W, SCREEN_H - UI_HEADER_H - 1, K_BG);
-    for (int i = 0; i < 4; i++) { subtitle(i, b, sizeof(b)); drawTile(i, i == sel, b); }
+    s_sel = sel;
+    for (int i = 0; i < 4; i++) {
+        getInfo(i, s_info[i]);
+        setupSub(i);
+        drawTile(i, i == sel);
+    }
     ui_footer("SELECT ou toque aqui: calibrar toque");
+}
+
+// Atualiza a hora e so os blocos cujo texto mudou (o texto que desfila nao recomeca a toa)
+void refreshInfo(int sel) {
+    struct tm t;
+    char clk[8] = "--:--";
+    if (net_local_time(&t)) snprintf(clk, sizeof(clk), "%02d:%02d", t.tm_hour, t.tm_min);
+    ui_header("Latinha", clk, false);
+    for (int i = 0; i < 4; i++) {
+        Info f;
+        getInfo(i, f);
+        if (strcmp(f.big, s_info[i].big) == 0 && strcmp(f.small, s_info[i].small) == 0) continue;
+        s_info[i] = f;
+        setupSub(i);
+        drawTile(i, i == sel);
+    }
 }
 
 void calibrate(int sel) {
@@ -96,22 +188,26 @@ void calibrate(int sel) {
     ui_wait_release();
 }
 
-}  // namespace
-
-int home_show() {
+int run() {
     int sel = 0;
     tft.fillScreen(K_BG);
     drawAll(sel);
     ui_wait_release();
     UiIn in;
-    uint32_t lastClk = millis();
+    uint32_t lastClk = millis(), lastScroll = 0;
     while (true) {
         ui_poll(in);
+        if (in.woke) { drawAll(sel); continue; }
         int ns = sel;
         if (in.pressed & (GB_BTN_LEFT | GB_BTN_RIGHT)) ns = sel ^ 1;
         if (in.pressed & (GB_BTN_UP | GB_BTN_DOWN)) ns = sel ^ 2;
         if (in.pressed & GB_BTN_SELECT) { calibrate(sel); continue; }
         if (in.tap && in.ty >= SCREEN_H - UI_FOOTER_H) { calibrate(sel); continue; }
+        if (in.tap && in.ty < UI_HEADER_H && in.tx < 170) {      // toque em "Latinha": olhos na hora
+            saver_run(true);
+            drawAll(sel);
+            continue;
+        }
         if (in.tap) {
             for (int i = 0; i < 4; i++) {
                 int x, y; tilePos(i, &x, &y);
@@ -120,7 +216,19 @@ int home_show() {
         }
         if (in.pressed & GB_BTN_A) return sel;
         if (ns != sel) { sel = ns; drawAll(sel); }
-        if (millis() - lastClk > 15000) { lastClk = millis(); drawAll(sel); }   // atualiza a hora
-        delay(15);
+        if (millis() - lastClk > 15000) { lastClk = millis(); refreshInfo(sel); }   // hora e resumos
+        if (millis() - lastScroll > 30) { lastScroll = millis(); stepScroll(lastScroll); }
+        delay(10);
     }
+}
+
+}  // namespace
+
+int home_show() {
+    s_spr = new TFT_eSprite(&tft);
+    s_spr->setColorDepth(16);
+    if (!s_spr->createSprite(SUB_W, SUB_H)) { delete s_spr; s_spr = nullptr; }   // sem memoria: so corta o texto
+    int r = run();
+    if (s_spr) { s_spr->deleteSprite(); delete s_spr; s_spr = nullptr; }
+    return r;
 }

@@ -34,6 +34,7 @@ struct UiIn {
     bool tap;           // toque novo nesta chamada
     bool held;          // dedo na tela
     int16_t tx, ty;     // posicao do toque (vale quando tap ou held)
+    bool woke;          // a tela de olhos acabou de sair: redesenhe a tela
 };
 
 void ui_poll(UiIn& in);                 // le botoes e toque; chame uma vez por volta do laco
@@ -43,4 +44,6 @@ void ui_footer(const char* hint);
 void ui_text(int x, int y, const char* s, uint16_t fg, uint16_t bg, uint8_t font = 2, uint8_t datum = TL_DATUM);
 void ui_msg(const char* l1, const char* l2 = nullptr, uint16_t color = K_AMBER);   // caixa de aviso no meio
 bool ui_hit(const UiIn& in, int x, int y, int w, int h);                            // tap dentro do retangulo
+// Texto que cabe em maxW px: fonte 2; se nao couber, fonte 1; se ainda nao, corta com "..".
+void ui_fit_text(int x, int y, int maxW, const char* s, uint16_t fg, uint16_t bg, uint8_t datum = ML_DATUM);
 void ui_strip_accents(char* s);         // UTF-8 -> ASCII (a fonte da tela nao tem acentos)
