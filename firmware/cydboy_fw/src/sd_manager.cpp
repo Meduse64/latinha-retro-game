@@ -39,14 +39,18 @@ static int scan_dir(const char* dir, bool gbc, RomEntry* l, int si, int mx, uint
         if (sys == 1) match = lo.endsWith(".gg");
         else if (sys == 2) match = lo.endsWith(".sms");
 #if USE_PEANUT
-        else match = lo.endsWith(".gb");   // o Peanut-GB nao roda jogos de Game Boy Color
+        // O Peanut-GB so emula o Game Boy comum. Jogos de Game Boy Color com "modo Game Boy"
+        // (byte 0x143 do cabecalho = 0x80) abrem sem cor; os exclusivos do GBC (0xC0) nao
+        // rodam, entao ficam fora da lista.
+        else if (lo.endsWith(".gbc")) { e.seek(0x143); match = (e.read() != 0xC0); }
+        else match = lo.endsWith(".gb");
 #else
         else match = lo.endsWith(".gb") || lo.endsWith(".gbc");
 #endif
         if (match) {
             strncpy(l[c].filename,n.c_str(),MAX_FILENAME-1);
             snprintf(l[c].full_path,80,"%s/%s",dir,n.c_str());
-            l[c].size=e.size(); l[c].is_gbc=gbc; l[c].sys=sys; c++;
+            l[c].size=e.size(); l[c].is_gbc=gbc && !USE_PEANUT; l[c].sys=sys; c++;   // com o Peanut-GB o selo e "GB": nao tem cor
         }
         e.close();
     }
