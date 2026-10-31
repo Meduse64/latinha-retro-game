@@ -26,7 +26,7 @@ class Overlay(private val ctx: Context, private val onReply: (Msg, String) -> Un
             setTextColor(Color.WHITE)
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
-            setAutoSizeTextTypeUniformWithConfiguration(28, 160, 2, TypedValue.COMPLEX_UNIT_SP)
+            setAutoSizeTextTypeUniformWithConfiguration(28, 200, 2, TypedValue.COMPLEX_UNIT_SP)
         }
         val hint = TextView(ctx).apply {
             this.text = if (m.options.isEmpty()) "toque para fechar" else "toque numa resposta"
@@ -46,13 +46,20 @@ class Overlay(private val ctx: Context, private val onReply: (Msg, String) -> Un
         if (m.options.isNotEmpty()) {
             val row = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
             for (opt in m.options) {
+                val first = opt == m.options.first()
                 val b = Button(ctx).apply {
                     this.text = opt
-                    textSize = 30f
+                    textSize = 40f
+                    typeface = Typeface.DEFAULT_BOLD
                     isAllCaps = false
+                    stateListAnimator = null
+                    setTextColor(if (first) 0xFF111111.toInt() else Color.WHITE)
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        setColor(if (first) 0xFFFFB300.toInt() else 0xFF3D4452.toInt()); cornerRadius = 24 * dp
+                    }
                     setOnClickListener { onReply(m, opt); dismiss() }
                 }
-                row.addView(b, LinearLayout.LayoutParams(0, (130 * dp).toInt(), 1f).apply {
+                row.addView(b, LinearLayout.LayoutParams(0, (160 * dp).toInt(), 1f).apply {
                     setMargins((6 * dp).toInt(), (12 * dp).toInt(), (6 * dp).toInt(), 0)
                 })
             }
