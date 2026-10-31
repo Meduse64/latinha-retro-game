@@ -33,8 +33,9 @@ object Link {
     var onStatus: (() -> Unit)? = null
     var onMessage: ((Msg) -> Unit)? = null   // usado pela garupa para ver a resposta
     var send: ((Msg) -> Boolean)? = null
+    var uiVisible = false   // MainActivity em primeiro plano
 
-    fun setStatus(s: String) { status = s; onStatus?.invoke() }
+    fun update(s: String) { status = s; onStatus?.invoke() }
 }
 
 /**
@@ -70,19 +71,19 @@ class LinkService : Service() {
         if (::client.isInitialized) { client.stopAdvertising(); client.stopDiscovery() }
         if (::overlay.isInitialized) overlay.dismiss()
         Link.send = null
-        Link.setStatus("Parado")
+        Link.update("Parado")
     }
 
     private fun begin() {
         peer = null
         if (pilot) {
-            Link.setStatus("Aguardando a garupa (código $code)…")
+            Link.update("Aguardando a garupa (código $code)…")
             client.startAdvertising(
                 code, SERVICE_ID, lifecycle,
                 AdvertisingOptions.Builder().setStrategy(Strategy.P2P_POINT_TO_POINT).build(),
             ).addOnFailureListener { retry("Erro ao anunciar: ${it.message}") }
         } else {
-            Link.setStatus("Procurando o piloto (código $code)…")
+            Link.update("Procurando o piloto (código $code)…")
             client.startDiscovery(
                 SERVICE_ID, discovery,
                 DiscoveryOptions.Builder().setStrategy(Strategy.P2P_POINT_TO_POINT).build(),
@@ -91,7 +92,7 @@ class LinkService : Service() {
     }
 
     private fun retry(why: String) {
-        Link.setStatus(why)
+        Link.update(why)
         main.postDelayed({ client.stopAdvertising(); client.stopDiscovery(); begin() }, 3000)
     }
 
@@ -114,7 +115,7 @@ class LinkService : Service() {
             if (r.status.isSuccess) {
                 peer = id
                 client.stopAdvertising(); client.stopDiscovery()
-                Link.setStatus("Conectado ✔")
+                Link.update("Conectado ✔")
             } else {
                 retry("Falha na conexão, tentando de novo…")
             }
@@ -137,9 +138,30 @@ class LinkService : Service() {
         buzz()
         if (pilot && m.kind == "msg") {
             if (Settings.canDrawOverlays(this)) overlay.show(m)
-        } else {
+        } else if (Link.uiVisible && Link.onMessage != null) {
             Link.onMessage?.invoke(m)
+        } else {
+            notifyReply(m)
         }
+    }
+
+    // Garupa com o app em segundo plano / tela apagada: mostra a resposta numa notificação.
+    private fun notifyReply(m: Msg) {
+        val nm = getSystemService(NotificationManager::class.java)
+        nm.createNotificationChannel(
+            NotificationChannel("reply", "Respostas", NotificationManager.IMPORTANCE_HIGH),
+        )
+        val open = android.app.PendingIntent.getActivity(
+            this, 1, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            android.app.PendingIntent.FLAG_IMMUTABLE,
+        )
+        nm.notify(2, Notification.Builder(this, "reply")
+            .setSmallIcon(android.R.drawable.stat_notify_chat)
+            .setContentTitle("Resposta do piloto")
+            .setContentText(m.text)
+            .setStyle(Notification.BigTextStyle().bigText(m.text))
+            .setContentIntent(open).setAutoCancel(true)
+            .build())
     }
 
     private fun reply(orig: Msg, answer: String) {

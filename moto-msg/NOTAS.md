@@ -37,3 +37,9 @@ App Android para comunicação na moto. O piloto usa o celular como GPS. A garup
 - Respostas personalizadas e pedir resposta em mensagens livres com outras opções.
 - Botões de resposta ainda maiores / uso com luvas; modo noturno.
 - Fechar a mensagem sozinha após alguns segundos (opcional).
+
+## Atualização (sessão 2)
+- Sem Android SDK no ambiente da nuvem (dl.google.com bloqueado): **`assembleDebug` ainda não rodou**. Verificação parcial: compilei os 4 `.kt` com kotlinc 1.9.24 contra `android-all` (API 34) e stubs do Nearby -> sem erros. Isso não valida manifest, recursos nem o Nearby real.
+- Corrigido: colisão JVM `Link.status`/`setStatus` (renomeado para `Link.update`).
+- Feito: resposta do piloto aparece como notificação na garupa quando o app dela não está em primeiro plano.
+- Pendente: build real, teste em dois aparelhos, TTS, mensagens editáveis.

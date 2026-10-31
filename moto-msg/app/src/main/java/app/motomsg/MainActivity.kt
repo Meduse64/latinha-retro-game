@@ -167,7 +167,9 @@ class MainActivity : Activity() {
         afterPerms = null
     }
 
-    override fun onResume() { super.onResume(); if (prefs.getString("role", null) == "pilot") render() }
+    override fun onPause() { Link.uiVisible = false; super.onPause() }
+
+    override fun onResume() { super.onResume(); Link.uiVisible = true; if (prefs.getString("role", null) == "pilot") render() }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 }
