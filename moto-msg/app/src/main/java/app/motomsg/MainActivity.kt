@@ -148,10 +148,11 @@ class MainActivity : Activity() {
 
     private fun ensurePermissions(then: () -> Unit) {
         val need = mutableListOf<String>()
+        // O Nearby exige localização em qualquer versão (erro 8034 se faltar).
+        need += Manifest.permission.ACCESS_FINE_LOCATION
+        need += Manifest.permission.ACCESS_COARSE_LOCATION
         if (Build.VERSION.SDK_INT >= 31) {
             need += listOf(Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN)
-        } else {
-            need += Manifest.permission.ACCESS_FINE_LOCATION
         }
         if (Build.VERSION.SDK_INT >= 33) {
             need += Manifest.permission.NEARBY_WIFI_DEVICES
